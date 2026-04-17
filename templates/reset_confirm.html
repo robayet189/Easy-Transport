@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head><title>New Password</title></head>
+<body>
+    <h2>Set new password</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Reset</button>
+    </form>
+</body>
+</html>
