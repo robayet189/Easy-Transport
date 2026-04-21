@@ -122,6 +122,7 @@ import os
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Email Configuration (for testing - prints to console)
+LOGIN_URL = '/login/'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'Next Route Transport <noreply@nextroute.com>'
 

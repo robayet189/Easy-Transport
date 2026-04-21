@@ -1,4 +1,5 @@
-# myapp/views.py
+from django.utils import timezone
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -91,7 +92,7 @@ def login_user(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Welcome back, {user.get_full_name() or user.username}!')
-            return redirect('homepage')
+            return redirect('dashboard')
         else:
             messages.error(request, 'Invalid email/username or password')
             return render(request, 'app1/login.html')
@@ -272,3 +273,217 @@ def password_reset_confirm_view(request, uidb64, token):
     else:
         return render(request, 'password_reset_confirm.html', {'valid': False})
 
+from django.shortcuts import render, redirect
+from django.contrib.auth.hashers import check_password
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from .models import Schedule
+
+
+
+def is_ajax(request):
+    """Check if request is AJAX (for SPA content swapping)"""
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+@login_required
+def dashboard(request):
+    """Main dashboard view with statistics and next trip"""
+    user = request.user
+    today = timezone.now().date()
+
+    # Get upcoming trips (today or future)
+
+    # Get next trip
+
+    # Check if user has an active pass
+    has_active_pass = False
+    if hasattr(user, 'userprofile'):
+        has_active_pass = user.userprofile.is_pass_active
+
+    context = {
+        'first_name': user.first_name,
+        'pass_status': 'Active' if has_active_pass else 'Inactive',
+        'next_payment': '৳1,200 due on 15th' if has_active_pass else 'No active pass',
+    }
+
+    if is_ajax(request):
+        return render(request, 'app1/partials/dashboard_content.html', context)
+    return render(request, 'app1/dashboard.html', context)
+
+
+@login_required
+def schedule(request):
+    """View all available routes and schedules"""
+    today = timezone.now().date()
+
+    # Get all active schedules for today and future
+    routes = Schedule.objects.filter(
+        is_active=True,
+        travel_date__gte=today
+    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')
+
+    # Group by morning/evening (optional)
+    morning_routes = routes.filter(departure_time__hour__lt=12)
+    evening_routes = routes.filter(departure_time__hour__gte=12)
+
+    context = {
+        'routes': routes,
+        'morning_routes': morning_routes,
+        'evening_routes': evening_routes,
+    }
+
+    if is_ajax(request):
+        return render(request, 'app1/partials/schedule_content.html', context)
+    return render(request, 'app1/schedule.html', context)
+
+
+def get_profile_context(user):
+    """Helper to get profile context data"""
+    profile = None
+    if hasattr(user, 'profile'):
+        profile = user.profile
+
+    # Default pass data if no profile exists
+    pass_valid_until = None
+    is_pass_active = False
+    pass_id = None
+
+    if profile:
+        is_pass_active = profile.is_pass_active
+        pass_valid_until = profile.pass_valid_until
+        pass_id = profile.pass_id
+
+    # Format date for display
+    pass_valid_until_str = pass_valid_until.strftime("%b %d, %Y") if pass_valid_until else "Not active"
+
+    return {
+        'user': user,
+        'profile': profile,
+        'is_pass_active': is_pass_active,
+        'pass_valid_until': pass_valid_until_str,
+        'pass_id': pass_id or 'Not assigned',
+    }
+
+
+def get_profile_context(user):
+    """Helper to get profile context data"""
+    # Ensure user has a profile
+    if not hasattr(user, 'profile'):
+        profile = UserProfile.objects.create(user=user)
+    else:
+        profile = user.profile
+
+    # Check if pass is still valid
+    is_active = profile.has_active_pass() if hasattr(profile, 'has_active_pass') else profile.is_pass_active
+
+    # Format date for display
+    pass_valid_until_str = profile.pass_valid_until.strftime("%b %d, %Y") if profile.pass_valid_until else "Not active"
+
+    return {
+        'user': user,
+        'profile': profile,
+        'is_pass_active': is_active,
+        'pass_valid_until': pass_valid_until_str,
+        'pass_id': profile.pass_id or 'No pass',
+    }
+
+@login_required
+def profile(request):
+    """User profile management"""
+    user = request.user
+
+    # Ensure user has a profile
+    if not hasattr(user, 'profile'):
+        UserProfile.objects.create(user=user)
+
+    if request.method == 'POST':
+        # Handle profile update
+        profile = user.profile
+
+        # Update User fields
+        first_name = request.POST.get('first_name', '')
+        last_name = request.POST.get('last_name', '')
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        user.save()
+
+        # Update Profile fields
+        profile.phone = request.POST.get('phone', profile.phone)
+        profile.department = request.POST.get('department', profile.department)
+        profile.institution_id = request.POST.get('institution_id', profile.institution_id)
+        profile.save()
+
+        messages.success(request, 'Profile updated successfully!')
+
+        # Always return the updated profile content for AJAX
+        context = get_profile_context(user)
+        return render(request, 'app1/partials/profile_content.html', context)
+
+    context = get_profile_context(user)
+
+    if is_ajax(request):
+        return render(request, 'app1/partials/profile_content.html', context)
+    return render(request, 'app1/profile.html', context)
+
+
+@login_required
+def change_password(request):
+    """Handle password change"""
+    if request.method == 'POST':
+        user = request.user
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+
+        # Validate
+        if not check_password(current_password, user.password):
+            messages.error(request, 'Current password is incorrect.')
+        elif len(new_password) < 6:
+            messages.error(request, 'New password must be at least 6 characters.')
+        elif new_password != confirm_password:
+            messages.error(request, 'New passwords do not match.')
+        else:
+            user.set_password(new_password)
+            user.save()
+            messages.success(request, 'Password changed successfully! Please login again.')
+
+            if is_ajax(request):
+                from django.http import JsonResponse
+                return JsonResponse({'redirect': '/login/'})
+            return redirect('login_page')
+
+        # If there were errors, return to profile
+        if is_ajax(request):
+            context = get_profile_context(user)
+            return render(request, 'app1/partials/profile_content.html', context)
+        return redirect('profile')
+
+    return redirect('profile')
+
+
+@login_required
+def renew_pass(request):
+    """Handle transport pass renewal"""
+    if request.method == 'POST':
+        user = request.user
+        profile = user.profile
+
+        from datetime import timedelta
+        new_expiry = timezone.now().date() + timedelta(days=30)
+
+        profile.is_pass_active = True
+        profile.pass_valid_until = new_expiry
+        profile.pass_id = f"PASS-{user.id}-{timezone.now().year}"
+        profile.save()
+
+        messages.success(request, 'Transport pass renewed successfully!')
+
+        if is_ajax(request):
+            context = get_profile_context(user)
+            return render(request, 'app1/partials/profile_content.html', context)
+        return redirect('profile')
+
+    return redirect('profile')

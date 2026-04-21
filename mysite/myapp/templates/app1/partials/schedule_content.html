@@ -1,0 +1,27 @@
+<h2>Routes & Schedule</h2>
+<div class="filters-bar">
+    <input type="date" id="travel_date" name="date">
+    <input type="text" placeholder="Search route or stop...">
+    <select name="time_filter">
+        <option>All Times</option>
+        <option>Morning (Before 12 PM)</option>
+        <option>Afternoon (12-4 PM)</option>
+        <option>Evening (After 4 PM)</option>
+    </select>
+</div>
+
+<div class="routes-grid">
+    {% for route in routes %}
+    <div class="route-card">
+        <div class="route-code">Route {{ route.route.code }}</div>
+        <div class="route-path">{{ route.route.start }} → {{ route.route.end }}</div>
+        <div class="route-time">Departure: {{ route.departure_time|time:"g:i A" }}</div>
+        <button class="btn-book">Book Now</button>
+    </div>
+    {% empty %}
+    <div class="no-trip-card">
+        <strong>No routes available</strong>
+        There are no active routes scheduled for today.
+    </div>
+    {% endfor %}
+</div>
