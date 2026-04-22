@@ -18,10 +18,14 @@ class UserProfile(models.Model):
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    phone = models.CharField(max_length=15)
-    institution_type = models.CharField(max_length=20, choices=INSTITUTION_TYPES)
-    user_type = models.CharField(max_length=20, choices=USER_TYPES)
-    institution_id = models.CharField(max_length=100)
+    phone = models.CharField(max_length=15, blank=True)
+    institution_type = models.CharField(max_length=50, blank=True)
+    user_type = models.CharField(max_length=20, choices=USER_TYPES, default='student')
+    institution_id = models.CharField(max_length=50, blank=True)
+    department = models.CharField(max_length=100, blank=True)
+    is_pass_active = models.BooleanField(default=False)
+    pass_valid_until = models.DateField(null=True, blank=True)
+    pass_id = models.CharField(max_length=50, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -31,3 +35,49 @@ class UserProfile(models.Model):
     class Meta:
         verbose_name = "User Profile"
         verbose_name_plural = "User Profiles"
+
+
+from django.db import models
+from django.contrib.auth.models import User
+
+
+class Route(models.Model):
+    """Bus route information"""
+    code = models.CharField(max_length=10, unique=True)  # A1, B3, C2, etc.
+    start = models.CharField(max_length=100)
+    end = models.CharField(max_length=100)
+    distance_km = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.code}: {self.start} → {self.end}"
+
+
+class Bus(models.Model):
+    """Bus details"""
+    bus_number = models.CharField(max_length=20, unique=True)
+    capacity = models.IntegerField(default=40)
+    driver_name = models.CharField(max_length=100)
+    driver_phone = models.CharField(max_length=15, blank=True)
+    has_ac = models.BooleanField(default=False)
+    has_wifi = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.bus_number} - {self.driver_name}"
+
+
+class Schedule(models.Model):
+    """Bus schedule for specific dates"""
+    route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='schedules')
+    bus = models.ForeignKey(Bus, on_delete=models.CASCADE, related_name='schedules')
+    departure_time = models.TimeField()
+    arrival_time = models.TimeField(null=True, blank=True)
+    travel_date = models.DateField()
+    fare = models.DecimalField(max_digits=8, decimal_places=2, default=60.00)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['route', 'travel_date', 'departure_time']
+        ordering = ['travel_date', 'departure_time']
+
+    def __str__(self):
+        return f"{self.route.code} - {self.departure_time} on {self.travel_date}"
