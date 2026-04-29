@@ -11,14 +11,11 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.core.mail import send_mail
 from django.conf import settings
-<<<<<<< HEAD
 from .models import UserProfile, Route, Bus, Schedule, Booking
 from django.shortcuts import get_object_or_404
 from .models import Booking, Schedule
 import json
-=======
 from django.contrib.auth.tokens import default_token_generator
->>>>>>> 5e79ce3f42363426114d3b9e3dd0b0df81c062da
 import re
 
 from .models import UserProfile, Schedule
@@ -341,7 +338,7 @@ def renew_pass(request):
         if is_ajax(request):
             return render(request, 'app1/partials/profile_content.html', get_profile_context(user))
         return redirect('profile')
-<<<<<<< HEAD
+
 
     return redirect('profile')
 
@@ -480,6 +477,6 @@ def check_seat_availability(request, schedule_id):
         'total_seats': schedule.bus.capacity if schedule.bus else 40,
         'fare': float(schedule.fare)
     })
-=======
+
     return redirect('profile')
->>>>>>> 5e79ce3f42363426114d3b9e3dd0b0df81c062da
+
