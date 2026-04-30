@@ -1,347 +1,310 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="initial-scale=1, width=device-width">
-  <title>Login - Next Route</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM Sans:wght@400;600&display=swap">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700&display=swap">
- 
+  <title>Login - Easy Transport</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
   <style>
-  body {
-  margin: 0;
-  line-height: normal;
-  font-family: 'DM Sans', sans-serif;
-  }
+    :root {
+      --bg-primary: #0f0f1a;
+      --bg-card: #1c1c2e;
+      --bg-input: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.12);
+      --text-primary: #ffffff;
+      --text-secondary: #a09ab8;
+      --accent: #ff4757;
+      --accent-hover: #ff6b6b;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --radius: 12px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-  :root {
-  --color-crimson: #ff4757;
-  --color-dimgray: #5a5470;
-  --color-gray-100: #1c1c2e;
-  --color-gray-200: rgba(255, 255, 255, 0.08);
-  --color-gray-300: rgba(255, 255, 255, 0.05);
-  --color-gray-400: rgba(255, 255, 255, 0.07);
-  --color-lavender: #e8e0f0;
-  --color-lightslategray: #a09ab8;
-  --color-white: #fff;
-  --padding-12: 12px;
-  --padding-16: 16px;
-  --br-10: 10px;
-  --font-dm-sans: DM Sans;
-  --font-syne: Syne;
-  --fs-14: 14px;
-  --fs-16: 16px;
-  --height-18: 18px;
-  --height-48: 48px;
-  --width-414: 414px;
-  }
+    body.light-mode {
+      --bg-primary: #f4f6f9;
+      --bg-card: #ffffff;
+      --bg-input: rgba(0, 0, 0, 0.04);
+      --border: rgba(0, 0, 0, 0.12);
+      --text-primary: #1a1a2e;
+      --text-secondary: #5a5470;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
 
-  .base-user-login {
-  width: 100%;
-  min-height: 100vh;
-  position: relative;
-  background: linear-gradient(135deg, #0f0f1a, #1a0a25 50%, #0a0f1f);
-  text-align: center;
-  font-size: var(--fs-14);
-  color: var(--color-white);
-  font-family: var(--font-dm-sans);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 50px 20px;
-  }
- 
-  .button {
-  position: absolute;
-  top: 57px;
-  left: 51px;
-  }
- 
-  .back-to-home {
-  color: var(--color-white);
-  text-decoration: none;
-  line-height: 21px;
-  font-weight: 600;
-  transition: color 0.3s;
-  }
- 
-  .back-to-home:hover {
-  color: var(--color-crimson);
-  }
- 
-  .container {
-  box-shadow: 0px 4px 24px rgba(0, 0, 0, 0.4);
-  border-radius: 16px;
-  background-color: var(--color-gray-100);
-  border-top: 2px solid var(--color-gray-400);
-  border-right: 1px solid var(--color-gray-400);
-  border-bottom: 1px solid var(--color-gray-400);
-  border-left: 1px solid var(--color-gray-400);
-  box-sizing: border-box;
-  width: 480px;
-  padding: 34px 33px;
-  }
- 
-  .container2 {
-  text-align: center;
-  margin-bottom: 30px;
-  }
- 
-  .heading-1 {
-  margin-bottom: 10px;
-  }
- 
-  .welcome-back {
-  font-size: 28px;
-  font-family: var(--font-syne);
-  line-height: 42px;
-  }
-   .paragraph {
-  font-size: 15px;
-  color: var(--color-lightslategray);
-  }
- 
-  .container3 {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  }
- 
-  .container4 {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  }
- 
-  .label {
-  text-align: left;
-  }
- 
-  .email {
-  font-weight: 600;
-  line-height: 21px;
-  }
- 
-  .email-input, .password-input {
-  border-radius: var(--br-10);
-  background-color: var(--color-gray-300);
-  border: 1px solid var(--color-gray-200);
-  box-sizing: border-box;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  padding: var(--padding-12) var(--padding-16);
-  width: 100%;
-  }
- 
-  .email-input input, .password-input input {
-  background: transparent;
-  border: none;
-  color: var(--color-white);
-  font-size: var(--fs-16);
-  width: 100%;
-  outline: none;
-  font-family: var(--font-dm-sans);
-  }
- 
-  .email-input input::placeholder, .password-input input::placeholder {
-  color: var(--color-dimgray);
-  }
- 
-  .container5 {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  }
- 
-  .container6 {
-  text-align: right;
-  }
- 
-  .forgot-password {
-  font-size: 13px;
-  color: var(--color-crimson);
-  text-decoration: none;
-  cursor: pointer;
-  }
- 
-  .forgot-password:hover {
-  text-decoration: underline;
-  }
- 
-  .password-wrapper {
-  position: relative;
-  width: 100%;
-  }
- 
-  .password-input {
-  width: 100%;
-  padding-right: 48px;
-  }
- 
-  .button2 {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-  }
- 
-  .button3 {
-  box-shadow: 0px 0px 20px rgba(255, 71, 87, 0.4);
-  border-radius: 16777200px;
-  background-color: var(--color-crimson);
-  text-align: center;
-  font-size: var(--fs-16);
-  color: var(--color-white);
-  border: none;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.3s;
-  margin-top: 10px;
-  }
- 
-  .button3:hover {
-  background-color: #ff6b6b;
-  transform: translateY(-2px);
-  }
- 
-  .paragraph2 {
-  text-align: center;
-  margin-top: 20px;
-  color: var(--color-lightslategray);
-  }
- 
-  .register {
-  color: var(--color-crimson);
-  text-decoration: none;
-  font-weight: 600;
-  }
- 
-  .register:hover {
-  text-decoration: underline;
-  }
- 
-  .messages {
-  margin-bottom: 20px;
-  }
- 
-  .error {
-  background: rgba(255, 71, 87, 0.2);
-  color: #ff4757;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  text-align: center;
-  }
- 
-  .success {
-  background: rgba(74, 222, 128, 0.2);
-  color: #4ade80;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  text-align: center;
-  }
- 
-  @media (max-width: 560px) {
-  .container {
-  width: 90%;
-  padding: 25px 20px;
-  }
-  .button {
-  position: static;
-  margin-bottom: 20px;
-  text-align: left;
-  }
-  .base-user-login {
-  flex-direction: column;
-  padding-top: 80px;
-  }
-  }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      transition: background 0.4s ease, color 0.3s ease;
+    }
+
+    /* BACK TO HOME - LEFT */
+    .back-home {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: var(--transition);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    .back-home:hover { color: var(--accent); background: rgba(255, 71, 87, 0.1); }
+
+    /* THEME TOGGLE - RIGHT */
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      transition: var(--transition);
+      z-index: 100;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .theme-toggle:hover {
+      transform: scale(1.05);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.15);
+    }
+    .theme-toggle .icon-sun { display: none; }
+    body.light-mode .theme-toggle .icon-moon { display: none; }
+    body.light-mode .theme-toggle .icon-sun { display: block; }
+
+    /* LOGIN CARD */
+    .login-wrapper { width: 100%; max-width: 440px; position: relative; }
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 40px 36px;
+      transition: var(--transition);
+    }
+    .login-header { text-align: center; margin-bottom: 32px; }
+    .login-header h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+    .login-header p { font-size: 14px; color: var(--text-secondary); }
+
+    .form-group { margin-bottom: 24px; }
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .input-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      transition: var(--transition);
+    }
+    .input-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.15);
+    }
+    .input-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      padding: 4px 0;
+    }
+    .input-box input::placeholder { color: var(--text-secondary); }
+
+    /* ✅ PASSWORD WRAPPER & EMOJI TOGGLE */
+    .pass-wrapper { position: relative; }
+    .pass-input { padding-right: 48px; }
+    
+    .toggle-emoji {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0;
+      line-height: 1;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+      z-index: 2;
+    }
+    .toggle-emoji:hover { opacity: 1; }
+
+    /* ✅ FORGOT PASSWORD - Proper spacing below input */
+    .forgot-link {
+      display: inline-block;
+      margin-top: 10px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: opacity 0.2s;
+      position:absolute;
+        right: 31px;
+    }
+    .forgot-link:hover { opacity: 0.8; text-decoration: underline; }
+
+    /* ✅ LOGIN BUTTON - Better padding & spacing */
+    .btn-login {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 12px;
+    }
+    .btn-login:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 71, 87, 0.35);
+    }
+
+    .register-text {
+      text-align: center;
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    .register-text a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .register-text a:hover { text-decoration: underline; }
+
+    .messages { margin-bottom: 24px; }
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .msg.error { background: rgba(255, 71, 87, 0.15); color: #ff7b87; border-left: 3px solid var(--accent); }
+    .msg.success { background: rgba(74, 222, 128, 0.15); color: #7ee7a5; border-left: 3px solid #4ade80; }
+
+    @media (max-width: 480px) {
+      .login-card { padding: 32px 24px; }
+      .back-home { top: 16px; left: 16px; }
+      .theme-toggle { top: 16px; right: 16px; width: 40px; height: 40px; font-size: 20px; }
+    }
   </style>
 </head>
 <body>
-  <div class="base-user-login">
-  <div class="button">
-  <a href="/" class="back-to-home">← Back to Home</a>
-  </div>
- 
-  <div class="container">
-  <div class="container2">
-  <div class="heading-1">
-  <b class="welcome-back">Welcome Back</b>
-  </div>
-  <div class="paragraph">
-  <div class="sign-in-to">Sign in to your Next Route account</div>
-  </div>
-  </div>
- 
-  <!-- Messages -->
-  <div class="messages">
-  {% if messages %}
-  {% for message in messages %}
-  <div class="{% if message.tags == 'error' %}error{% else %}success{% endif %}">
-  {{ message }}
-  </div>
-  {% endfor %}
-  {% endif %}
-  </div>
- 
-  <!-- Login Form -->
-  <form method="POST" action="/api/login/">
-  {% csrf_token %}
-  <div class="container3">
-  <div class="container4">
-  <div class="label">
-  <div class="email">Email or Username</div>
-  </div>
-  <div class="email-input">
-  <input type="text" name="username" placeholder="you@gmail.com or username" required>
-  </div>
-  </div>
- 
-  <div class="container5">
-  <div class="label">
-  <div class="email">Password</div>
-  </div>
-  <div class="container6">
-  <a href="/forgot-password/" class="forgot-password">Forgot Password?</a>
-  </div>
-  <div class="password-wrapper">
-  <div class="password-input">
-  <input type="password" name="password" id="password" placeholder="••••••••" required>
-  </div>
-  <div class="button2" onclick="togglePassword()">
-  👁️
-  </div>
-  </div>
-  </div>
- 
-  <button type="submit" class="button3">
-  Login
+
+  <!-- BACK TO HOME -->
+  <a href="/" class="back-home">← Back to Home</a>
+
+  <!-- THEME TOGGLE (🌙 / ☀️) -->
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <span class="icon-moon">🌙</span>
+    <span class="icon-sun">☀️</span>
   </button>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header">
+        <h1>Welcome Back</h1>
+        <p>Sign in to your Easy Transport account</p>
+      </div>
+
+      {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+        <div class="msg {% if message.tags == 'error' %}error{% else %}success{% endif %}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/api/login/">
+        {% csrf_token %}
+        
+        <div class="form-group">
+          <label class="form-label">Email or Username</label>
+          <div class="input-box">
+            <input type="text" name="username" placeholder="you@example.com" required autocomplete="username">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div class="pass-wrapper">
+            <div class="input-box">
+              <input type="password" name="password" id="password" placeholder="••••••••" required autocomplete="current-password" class="pass-input">
+            </div>
+            <button type="button" id="togglePass" class="toggle-emoji" aria-label="Toggle password visibility">👁️</button>
+          </div>
+          <a href="/forgot-password/" class="forgot-link">Forgot Password?</a>
+        </div>
+
+        <button type="submit" class="btn-login">Login</button>
+      </form>
+
+      <div class="register-text">
+        Don't have an account? <a href="/register/">Register</a>
+      </div>
+    </div>
   </div>
-  </form>
- 
-  <div class="paragraph2">
-  <span>Don't have an account? </span>
-  <a href="/register/" class="register">Register</a>
-  </div>
-  </div>
-  </div>
- 
+
   <script>
-  function togglePassword() {
-  const passwordInput = document.getElementById('password');
-  const icon = document.querySelector('.button2');
-  if (passwordInput.type === 'password') {
-  passwordInput.type = 'text';
-  icon.textContent = '🙈';
-  } else {
-  passwordInput.type = 'password';
-  icon.textContent = '👁️';
-  }
-  }
+    document.addEventListener('DOMContentLoaded', () => {
+      const themeBtn = document.getElementById('themeToggle');
+      const body = document.body;
+      const savedTheme = localStorage.getItem('nr_theme');
+      
+      if (savedTheme === 'light') body.classList.add('light-mode');
+      
+      themeBtn.addEventListener('click', () => {
+        body.classList.toggle('light-mode');
+        const isLight = body.classList.contains('light-mode');
+        localStorage.setItem('nr_theme', isLight ? 'light' : 'dark');
+      });
+
+      const passToggle = document.getElementById('togglePass');
+      const passInput = document.getElementById('password');
+
+      passToggle.addEventListener('click', () => {
+        const isPassword = passInput.type === 'password';
+        passInput.type = isPassword ? 'text' : 'password';
+        passToggle.textContent = isPassword ? '🙈' : '👁️';
+      });
+    });
   </script>
 </body>
+</html>
