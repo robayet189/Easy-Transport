@@ -1,7 +1,50 @@
 {% extends 'app1/admin/admin_base.html' %}
-{% block title %}Dashboard Overview{% endblock %}
+
+{% block title %}Dashboard - Easy Transport{% endblock %}
+
 {% block content %}
-<div id="dashboard-content">
-  {% include 'app1/admin/admin_dashboard_content.html' %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mt-4">Dashboard Overview</h1>
+            <p class="lead">Welcome to Easy Transport Admin Panel</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white mb-4">
+                <div class="card-body">
+                    <h3>{{ total_users|default:0 }}</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white mb-4">
+                <div class="card-body">
+                    <h3>{{ active_buses|default:0 }}</h3>
+                    <p>Active Buses</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white mb-4">
+                <div class="card-body">
+                    <h3>{{ today_bookings|default:0 }}</h3>
+                    <p>Today's Bookings</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white mb-4">
+                <div class="card-body">
+                    <h3>৳{{ today_revenue|default:0 }}</h3>
+                    <p>Today's Revenue</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

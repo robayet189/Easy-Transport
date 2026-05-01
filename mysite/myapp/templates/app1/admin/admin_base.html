@@ -537,6 +537,31 @@ function getCookie(name) {
     return cookieValue;
 }
 
+// ✅ FIXED: Global deleteUser function (works with AJAX-loaded content)
+window.deleteUser = function(userId) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        fetch(`/admin_page/api/delete-user/${userId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete user.');
+        });
+    }
+};
+
 // Global variable to track if we're loading
 let isLoading = false;
 
@@ -579,7 +604,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 contentDiv.innerHTML = html;
             }
 
-            // Re-initialize any page-specific scripts
+            // ✅ FIXED: Re-initialize scripts after AJAX load
             if (typeof initPageScripts === 'function') {
                 initPageScripts();
             }
@@ -637,16 +662,34 @@ document.addEventListener('DOMContentLoaded', function() {
     updateActiveLink(window.location.href);
 });
 
-// Function to reinitialize scripts after AJAX load
+// ✅ FIXED: Re-initialize scripts after AJAX load
 window.initPageScripts = function() {
-    // Re-attach any event listeners for dynamically loaded content
+    // Re-attach onclick handlers for dynamically loaded buttons
     document.querySelectorAll('[onclick]').forEach(el => {
-        const onclickAttr = el.getAttribute('onclick');
-        if (onclickAttr && !el.hasAttribute('data-click-bound')) {
+        if (!el.hasAttribute('data-click-bound')) {
             el.setAttribute('data-click-bound', 'true');
+            const onclickAttr = el.getAttribute('onclick');
+            if (onclickAttr && onclickAttr.includes('deleteUser')) {
+                // Extract userId from onclick attribute
+                const match = onclickAttr.match(/deleteUser\((\d+)\)/);
+                if (match) {
+                    const userId = match[1];
+                    el.onclick = function(e) {
+                        e.preventDefault();
+                        window.deleteUser(userId);
+                    };
+                }
+            }
         }
     });
 };
+
+// ✅ Initialize scripts on first load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPageScripts);
+} else {
+    initPageScripts();
+}
 </script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+import random
+import string
 
 
 class UserProfile(models.Model):
@@ -17,9 +19,9 @@ class UserProfile(models.Model):
         ('executive', 'Executive'),
     ]
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='userprofile')
     phone = models.CharField(max_length=15, blank=True)
-    institution_type = models.CharField(max_length=50, blank=True)
+    institution_type = models.CharField(max_length=50, blank=True, choices=INSTITUTION_TYPES)
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='student')
     institution_id = models.CharField(max_length=50, blank=True)
     department = models.CharField(max_length=100, blank=True)
@@ -37,19 +39,19 @@ class UserProfile(models.Model):
         verbose_name_plural = "User Profiles"
 
 
-from django.db import models
-from django.contrib.auth.models import User
-
-
 class Route(models.Model):
     """Bus route information"""
-    code = models.CharField(max_length=10, unique=True)  # A1, B3, C2, etc.
+    code = models.CharField(max_length=10, unique=True)
     start = models.CharField(max_length=100)
     end = models.CharField(max_length=100)
     distance_km = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.code}: {self.start} → {self.end}"
+
+    class Meta:
+        ordering = ['code']
 
 
 class Bus(models.Model):
@@ -61,9 +63,14 @@ class Bus(models.Model):
     has_ac = models.BooleanField(default=False)
     has_wifi = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    last_maintenance = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.bus_number} - {self.driver_name}"
+
+    class Meta:
+        ordering = ['bus_number']
 
 
 class Schedule(models.Model):
@@ -76,6 +83,7 @@ class Schedule(models.Model):
     fare = models.DecimalField(max_digits=8, decimal_places=2, default=60.00)
     is_active = models.BooleanField(default=True)
     available_seats = models.IntegerField(default=40)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ['route', 'travel_date', 'departure_time']
@@ -83,8 +91,15 @@ class Schedule(models.Model):
 
     def __str__(self):
         return f"{self.route.code} - {self.departure_time} on {self.travel_date}"
-    
-   
+
+    @property
+    def booked_seats(self):
+        return self.bookings.filter(status='confirmed').aggregate(total=models.Sum('number_of_seats'))['total'] or 0
+
+    @property
+    def remaining_seats(self):
+        return max(0, self.available_seats - self.booked_seats)
+
 
 class Booking(models.Model):
     """Ticket booking information"""
@@ -94,13 +109,13 @@ class Booking(models.Model):
         ('cancelled', 'Cancelled'),
         ('completed', 'Completed'),
     ]
-    
+
     PAYMENT_STATUS = [
         ('unpaid', 'Unpaid'),
         ('paid', 'Paid'),
         ('refunded', 'Refunded'),
     ]
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings')
     schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE, related_name='bookings')
     booking_date = models.DateTimeField(auto_now_add=True)
@@ -108,25 +123,31 @@ class Booking(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='paid')
-    booking_id = models.CharField(max_length=50, unique=True, blank=True)
+    booking_id = models.CharField(max_length=50, unique=True, editable=False)
     passenger_name = models.CharField(max_length=100, blank=True)
     passenger_phone = models.CharField(max_length=15, blank=True)
-    passenger_email = models.CharField(max_length=100, blank=True)
+    passenger_email = models.EmailField(max_length=100, blank=True)
     seat_numbers = models.CharField(max_length=200, blank=True)
-    travel_date = models.DateField(null=True, blank=True)
-    
+
     def save(self, *args, **kwargs):
+        # Auto-generate unique booking_id if not set
         if not self.booking_id:
-            import random
-            import string
-            self.booking_id = 'TR' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        if not self.travel_date and self.schedule:
-            self.travel_date = self.schedule.travel_date
+            while True:
+                code = 'TR' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                if not Booking.objects.filter(booking_id=code).exists():
+                    self.booking_id = code
+                    break
+        # Auto-fill travel_date from schedule if not set
+        if not hasattr(self, 'travel_date') or not self.travel_date:
+            if self.schedule:
+                self.travel_date = self.schedule.travel_date
         super().save(*args, **kwargs)
-    
+
     def __str__(self):
         seat_info = f" - Seats: {self.seat_numbers}" if self.seat_numbers else ""
         return f"Booking {self.booking_id} - {self.passenger_name or self.user.username}{seat_info}"
-    
+
     class Meta:
-        ordering = ['-booking_date']  
+        ordering = ['-booking_date']
+        verbose_name = "Booking"
+        verbose_name_plural = "Bookings"
