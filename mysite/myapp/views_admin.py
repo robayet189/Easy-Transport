@@ -65,22 +65,27 @@ def admin_dashboard(request):
     return render(request, 'app1/admin/admin_dashboard.html', context)
 
 
-
 @login_required
 @user_passes_test(is_admin, login_url='login_page')
 def admin_fleet(request):
-    """Fleet management"""
+    """Fleet management page"""
     buses = Bus.objects.all().order_by('id')
+
+    total_buses = buses.count()
+    active_buses = buses.filter(is_active=True).count()
+    inactive_buses = buses.filter(is_active=False).count()
+    maintenance_buses = 0
 
     context = {
         'active': 'fleet',
         'buses': buses,
-        'total_buses': buses.count(),
-        'active_buses': buses.filter(is_active=True).count(),
+        'total_buses': total_buses,
+        'active_buses': active_buses,
+        'inactive_buses': inactive_buses,
+        'maintenance_buses': maintenance_buses,
     }
 
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return render(request, 'app1/admin/admin_fleet_content.html', context)
+
     return render(request, 'app1/admin/admin_fleet.html', context)
 
 

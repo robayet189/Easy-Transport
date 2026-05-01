@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Alegreya+SC:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+  /* Your existing CSS styles here - keep them exactly as they are */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
@@ -511,73 +512,141 @@
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toastMessage');
-    toastMsg.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
+    if (toast && toastMsg) {
+        toastMsg.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
 }
 
-// AJAX Navigation
+// Get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Global variable to track if we're loading
+let isLoading = false;
+
+// AJAX Navigation - FIXED VERSION
 document.addEventListener('DOMContentLoaded', function() {
-    const navLinks = document.querySelectorAll('.nav-item[href]');
+    const navLinks = document.querySelectorAll('.sidebar-nav a, .sidebar-footer a');
     const contentDiv = document.getElementById('main-content');
 
     async function loadPage(url, pushState = true) {
+        // Prevent multiple simultaneous loads
+        if (isLoading) return;
+        isLoading = true;
+
         try {
+            // Show loading spinner
             contentDiv.innerHTML = '<div class="loading-spinner active"><div class="spinner"></div></div>';
+
             const response = await fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
             });
+
+            if (!response.ok) throw new Error('Network response was not ok');
+
             const html = await response.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            const newContent = doc.getElementById('main-content');
+
+            // Extract the main content
+            let newContent = doc.getElementById('main-content');
+            if (!newContent) {
+                // If no main-content, try to get the content block
+                newContent = doc.querySelector('.dashboard') || doc.body;
+            }
+
             if (newContent) {
                 contentDiv.innerHTML = newContent.innerHTML;
             } else {
                 contentDiv.innerHTML = html;
             }
-            if (pushState) {
-                history.pushState({ url: url }, '', url);
+
+            // Re-initialize any page-specific scripts
+            if (typeof initPageScripts === 'function') {
+                initPageScripts();
             }
+
+            if (pushState) {
+                const newUrl = new URL(url, window.location.origin);
+                history.pushState({ url: newUrl.pathname }, '', newUrl.pathname);
+            }
+
             updateActiveLink(url);
+
         } catch (error) {
-            console.error(error);
-            contentDiv.innerHTML = '<p style="color:var(--accent-red); text-align:center; padding:40px;">Failed to load page.</p>';
+            console.error('Navigation error:', error);
+            contentDiv.innerHTML = '<p style="color:var(--accent-red); text-align:center; padding:40px;">Failed to load page. Please refresh.</p>';
+        } finally {
+            isLoading = false;
         }
     }
 
     function updateActiveLink(currentUrl) {
         const currentPath = new URL(currentUrl, window.location.origin).pathname;
         navLinks.forEach(link => {
-            const linkPath = new URL(link.href, window.location.origin).pathname;
-            if (linkPath === currentPath) {
-                link.classList.add('active');
-            } else {
-                link.classList.remove('active');
+            if (link.href) {
+                const linkPath = new URL(link.href, window.location.origin).pathname;
+                if (linkPath === currentPath) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
             }
         });
     }
 
+    // Handle navigation clicks
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
-            e.preventDefault();
+            // Don't intercept if it's a form submit or has target="_blank"
+            if (this.tagName === 'BUTTON' || this.target === '_blank') return;
+
             const url = this.href;
-            loadPage(url, true);
+            if (url && !url.startsWith('javascript:')) {
+                e.preventDefault();
+                loadPage(url, true);
+            }
         });
     });
 
+    // Handle browser back/forward
     window.addEventListener('popstate', function(event) {
-        if (event.state && event.state.url) {
-            loadPage(event.state.url, false);
-        } else {
-            loadPage(window.location.pathname, false);
-        }
+        const url = event.state?.url || window.location.pathname;
+        loadPage(url, false);
     });
 
+    // Initial active link update
     updateActiveLink(window.location.href);
 });
+
+// Function to reinitialize scripts after AJAX load
+window.initPageScripts = function() {
+    // Re-attach any event listeners for dynamically loaded content
+    document.querySelectorAll('[onclick]').forEach(el => {
+        const onclickAttr = el.getAttribute('onclick');
+        if (onclickAttr && !el.hasAttribute('data-click-bound')) {
+            el.setAttribute('data-click-bound', 'true');
+        }
+    });
+};
 </script>
 </body>
 </html>
