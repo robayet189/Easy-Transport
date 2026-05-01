@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect
+from django.db import models
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -247,10 +248,36 @@ def dashboard(request):
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
 
+    # Get user's upcoming bookings (active, not past)
+    today = timezone.now().date()
+    upcoming_bookings = Booking.objects.filter(
+        user=user,
+        status='confirmed',
+        schedule__travel_date__gte=today
+    ).select_related('schedule__route', 'schedule__bus').order_by('schedule__travel_date', 'schedule__departure_time')[
+        :5]
+
+    # Get recent past bookings
+    past_bookings = Booking.objects.filter(
+        user=user,
+        status='confirmed',
+        schedule__travel_date__lt=today
+    ).select_related('schedule__route', 'schedule__bus').order_by('-schedule__travel_date')[:3]
+
+    # Count statistics
+    total_bookings = Booking.objects.filter(user=user, status='confirmed').count()
+    total_spent = Booking.objects.filter(user=user, status='confirmed').aggregate(
+        total=models.Sum('total_amount')
+    )['total'] or 0
+
     context = {
         'first_name': user.first_name,
         'pass_status': 'Active' if profile.is_pass_active else 'Inactive',
         'next_payment': '৳1,200 due on 15th' if profile.is_pass_active else 'No active pass',
+        'upcoming_bookings': upcoming_bookings,
+        'past_bookings': past_bookings,
+        'total_bookings': total_bookings,
+        'total_spent': total_spent,
     }
 
     if is_ajax(request):
@@ -276,6 +303,25 @@ def schedule(request):
         return render(request, 'app1/schedule.html', {'routes': [], 'error': str(e)})
 
 
+@login_required
+def schedule_details(request, schedule_id):
+    """Get schedule details for booking modal"""
+    schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
+
+    return JsonResponse({
+        'success': True,
+        'schedule': {
+            'id': schedule.id,
+            'route_code': schedule.route.code,
+            'start': schedule.route.start,
+            'end': schedule.route.end,
+            'date': schedule.travel_date.strftime('%A, %B %d, %Y'),
+            'time': schedule.departure_time.strftime('%I:%M %p'),
+            'fare': float(schedule.fare),
+            'bus_number': schedule.bus.bus_number,
+            'available_seats': schedule.available_seats,
+        }
+    })
 # ================= PROFILE & EDIT PROFILE =================
 
 @login_required

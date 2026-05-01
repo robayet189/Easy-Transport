@@ -23,6 +23,7 @@ urlpatterns = [
     path('cancel-booking/<str:booking_id>/', views.cancel_booking, name='cancel_booking'),
     path('check-seats/<int:schedule_id>/', views.check_seat_availability, name='check_seat_availability'),
     path('schedule/', views.schedule, name='schedule'),
+    path('schedule/<int:schedule_id>/details/', views.schedule_details, name='schedule_details'),
     path('book-ticket/<int:schedule_id>/', views.book_ticket, name='book_ticket'),
     path('edit-profile/', views.edit_profile, name='edit_profile'),
 
@@ -50,4 +51,14 @@ urlpatterns = [
     path('confirm-booking/', views.confirm_booking, name='confirm_booking'),
     path('booking-confirmation/<str:booking_id>/', views.booking_confirmation, name='booking_confirmation'),
     path('bus-schedule/', views.bus_schedule, name='bus_schedule'),
+    # Route Management APIs
+    path('admin_page/routes/', views_admin.admin_routes, name='admin_routes'),
+    path('admin_page/api/add-route/', views_admin.admin_add_route, name='admin_add_route'),
+    path('admin_page/api/route/<int:route_id>/', views_admin.admin_route_detail, name='admin_route_detail'),
+    path('admin_page/api/add-schedule/', views_admin.admin_add_schedule, name='admin_add_schedule'),
+    path('admin_page/api/delete-route/<int:route_id>/', views_admin.admin_delete_route, name='admin_delete_route'),
+    path('admin_page/api/toggle-schedule/<int:schedule_id>/', views_admin.admin_toggle_schedule_status,
+         name='admin_toggle_schedule'),
+    path('admin_page/api/delete-schedule/<int:schedule_id>/', views_admin.admin_delete_schedule,
+         name='admin_delete_schedule'),
 ]

@@ -370,3 +370,181 @@ def admin_delete_bus(request, bus_id):
     bus = get_object_or_404(Bus, id=bus_id)
     bus.delete()
     return JsonResponse({'success': True, 'message': 'Bus deleted successfully!'})
+
+
+# Add these to your existing views_admin.py
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import user_passes_test, login_required
+from django.contrib import messages
+from django.http import JsonResponse
+from django.db.models import Count, Sum, Avg, Q
+from django.utils import timezone
+from datetime import datetime, timedelta
+from .models import UserProfile, Route, Bus, Schedule, Booking
+from django.contrib.auth.models import User
+import json
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+def admin_routes(request):
+    """Route management page - Main view"""
+    routes = Route.objects.all().order_by('code')
+    buses = Bus.objects.filter(is_active=True)
+
+    # Get schedule counts for each route
+    routes_with_counts = routes.annotate(
+        schedule_count=Count('schedules', filter=Q(schedules__travel_date__gte=timezone.now().date()))
+    )
+
+    # Get upcoming schedules
+    today = timezone.now().date()
+    for route in routes_with_counts:
+        route.upcoming_schedules = Schedule.objects.filter(
+            route=route,
+            travel_date__gte=today,
+            is_active=True
+        ).select_related('bus').order_by('travel_date', 'departure_time')[:3]
+
+        # Get bus count for this route
+        route.bus_count = Schedule.objects.filter(route=route, is_active=True).values('bus').distinct().count()
+
+    total_routes = routes.count()
+    active_routes = routes.filter(schedules__is_active=True, schedules__travel_date__gte=today).distinct().count()
+    total_buses = Bus.objects.filter(is_active=True).count()
+
+    # Calculate average fare from schedules
+    avg_fare = Schedule.objects.filter(is_active=True).aggregate(avg=Avg('fare'))['avg'] or 0
+
+    context = {
+        'active': 'routes',
+        'routes': routes_with_counts,
+        'total_routes': total_routes,
+        'active_routes': active_routes,
+        'total_buses': total_buses,
+        'avg_fare': round(avg_fare, 2),
+        'buses': buses,
+    }
+
+    return render(request, 'app1/admin/admin_routes.html', context)
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+def admin_route_detail(request, route_id):
+    """Get route details via API"""
+    route = get_object_or_404(Route, id=route_id)
+    return JsonResponse({
+        'id': route.id,
+        'code': route.code,
+        'start': route.start,
+        'end': route.end,
+        'distance_km': float(route.distance_km) if route.distance_km else None,
+    })
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+@require_http_methods(["POST"])
+def admin_add_route(request):
+    """Add a new route via API"""
+    try:
+        data = json.loads(request.body)
+
+        code = data.get('code', '').upper().strip()
+        start = data.get('start', '').strip()
+        end = data.get('end', '').strip()
+
+        if not code or not start or not end:
+            return JsonResponse({'success': False, 'message': 'Route code, start, and end are required!'})
+
+        # Check if route code already exists
+        if Route.objects.filter(code=code).exists():
+            return JsonResponse({'success': False, 'message': f'Route code "{code}" already exists!'})
+
+        route = Route.objects.create(
+            code=code,
+            start=start,
+            end=end,
+            distance_km=data.get('distance_km')
+        )
+        return JsonResponse({'success': True, 'message': f'Route {route.code} added successfully!'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+@require_http_methods(["POST"])
+def admin_add_schedule(request):
+    """Add a new schedule via API"""
+    try:
+        data = json.loads(request.body)
+        route = get_object_or_404(Route, id=data.get('route'))
+        bus = get_object_or_404(Bus, id=data.get('bus'))
+
+        # Validate dates
+        travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
+        departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
+
+        # Check for duplicate schedule
+        if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
+            return JsonResponse({'success': False, 'message': 'Schedule already exists for this route at this time!'})
+
+        available_seats = data.get('available_seats') or bus.capacity
+
+        schedule = Schedule.objects.create(
+            route=route,
+            bus=bus,
+            travel_date=travel_date,
+            departure_time=departure_time,
+            fare=float(data.get('fare', 40)),
+            available_seats=int(available_seats),
+            is_active=data.get('is_active', True)
+        )
+
+        return JsonResponse(
+            {'success': True, 'message': f'Schedule added for {route.code} on {travel_date} at {departure_time}'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+@require_http_methods(["DELETE"])
+def admin_delete_route(request, route_id):
+    """Delete a route via API"""
+    route = get_object_or_404(Route, id=route_id)
+    route_code = route.code
+
+    # Check if route has any schedules
+    if Schedule.objects.filter(route=route).exists():
+        return JsonResponse({'success': False,
+                             'message': f'Cannot delete Route "{route_code}". It has existing schedules. Delete schedules first.'})
+
+    route.delete()
+    return JsonResponse({'success': True, 'message': f'Route {route_code} deleted successfully!'})
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+@require_http_methods(["POST"])
+def admin_toggle_schedule_status(request, schedule_id):
+    """Toggle schedule active status"""
+    schedule = get_object_or_404(Schedule, id=schedule_id)
+    schedule.is_active = not schedule.is_active
+    schedule.save()
+    status = 'activated' if schedule.is_active else 'deactivated'
+    return JsonResponse({'success': True, 'message': f'Schedule {status} successfully!'})
+
+
+@login_required
+@user_passes_test(is_admin, login_url='login_page')
+@require_http_methods(["DELETE"])
+def admin_delete_schedule(request, schedule_id):
+    """Delete a schedule"""
+    schedule = get_object_or_404(Schedule, id=schedule_id)
+    route_code = schedule.route.code
