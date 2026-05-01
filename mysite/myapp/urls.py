@@ -25,6 +25,7 @@ urlpatterns = [
     path('schedule/', views.schedule, name='schedule'),
     path('book-ticket/<int:schedule_id>/', views.book_ticket, name='book_ticket'),
     path('edit-profile/', views.edit_profile, name='edit_profile'),
+
     path('admin_page/dashboard/', views_admin.admin_dashboard, name='admin_dashboard'),
     path('admin_page/fleet/', views_admin.admin_fleet, name='admin_fleet'),
     path('admin_page/routes/', views_admin.admin_routes, name='admin_routes'),
@@ -35,8 +36,7 @@ urlpatterns = [
     path('admin_page/notifications/', views_admin.admin_notifications, name='admin_notifications'),
 
     # Admin API
-    path('admin_page/api/update-booking/<int:booking_id>/', views_admin.admin_update_booking_status,
-         name='admin_update_booking'),
+    path('admin_page/api/update-booking/<int:booking_id>/', views_admin.admin_update_booking_status,name='admin_update_booking'),
     path('admin_page/api/delete-user/<int:user_id>/', views_admin.admin_delete_user, name='admin_delete_user'),
     path('admin_page/api/toggle-bus/<int:bus_id>/', views_admin.admin_toggle_bus_status, name='admin_toggle_bus'),
     # Fleet Management APIs
@@ -46,4 +46,8 @@ urlpatterns = [
     path('admin_page/api/update-bus/<int:bus_id>/', views_admin.admin_update_bus, name='admin_update_bus'),
     path('admin_page/api/toggle-bus/<int:bus_id>/', views_admin.admin_toggle_bus_status, name='admin_toggle_bus'),
     path('admin_page/api/delete-bus/<int:bus_id>/', views_admin.admin_delete_bus, name='admin_delete_bus'),
+    path('select-seats/<int:schedule_id>/', views.select_seats, name='select_seats'),
+    path('confirm-booking/', views.confirm_booking, name='confirm_booking'),
+    path('booking-confirmation/<str:booking_id>/', views.booking_confirmation, name='booking_confirmation'),
+    path('bus-schedule/', views.bus_schedule, name='bus_schedule'),
 ]
