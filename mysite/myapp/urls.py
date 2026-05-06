@@ -8,10 +8,10 @@ urlpatterns = [
     path('api/login/', views.login_user, name='login_user'),
     path('register/', views.register_page, name='register_page'),
     path('api/register/', views.register_user, name='register_user'),
-    path('account-created/', views.account_created_page, name='account_created_page'),  # ✅ NEW
-    path('verify-email/<str:token>/', views.verify_email, name='verify_email'),  # ✅ NEW
-    path('api/resend-verification/', views.resend_verification_email, name='resend_verification'),  # ✅ NEW
-    path('api/password-reset/', views.password_reset_request, name='password_reset_request'),  # ✅ NEW
+    path('account-created/', views.account_created_page, name='account_created_page'),
+    path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
+    path('api/resend-verification/', views.resend_verification_email, name='resend_verification'),
+    path('api/password-reset/', views.password_reset_request, name='password_reset_request'),
     path('logout/', views.logout_user, name='logout'),
 
     # ================= USER DASHBOARD & PROFILE =================
@@ -19,6 +19,8 @@ urlpatterns = [
     path('schedule/', views.schedule, name='schedule'),
     path('profile/', views.profile, name='profile'),
     path('edit-profile/', views.edit_profile, name='edit_profile'),
+    path('change-password/', views.change_password, name='change_password'),  # ✅ NEW
+    path('renew-pass/', views.renew_pass, name='renew_pass'),  # ✅ NEW
     
     # ================= BOOKING & TICKETS =================
     path('my-bookings/', views.my_bookings, name='my_bookings'),

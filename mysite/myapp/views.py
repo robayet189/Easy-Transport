@@ -9,7 +9,9 @@ from django.utils import timezone
 from django.db.models import Sum
 from django.core.mail import send_mail
 from django.conf import settings
+from django.contrib.auth.hashers import make_password, check_password
 from .models import UserProfile, Schedule, Booking
+from datetime import datetime, timedelta
 import random, string
 
 def homepage(request):
@@ -231,7 +233,20 @@ def profile(request):
         messages.success(request, 'Profile updated successfully!')
         return redirect('profile')
     
-    context = {'user': user, 'profile': profile}
+    # ✅ FIXED: Add missing context variables
+    context = {
+        'user': user, 
+        'profile': profile,
+        'pass_valid_until': profile.pass_valid_until if profile.pass_valid_until else 'N/A',
+        'is_pass_active': profile.is_pass_active,
+        'pass_id': profile.pass_id if profile.pass_id else 'Not Assigned',
+    }
+    
+    # ✅ FIXED: For AJAX requests (SPA navigation), render only content part
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render(request, 'app1/partials/profile_content.html', context)
+    
+    # For normal requests, render full page
     return render(request, 'app1/profile.html', context)
 
 @login_required
@@ -242,6 +257,51 @@ def edit_profile(request):
 def my_bookings(request):
     bookings = Booking.objects.filter(user=request.user).select_related('schedule__route', 'schedule__bus').order_by('-booking_date')
     return render(request, 'app1/my_bookings.html', {'bookings': bookings})
+
+# ✅ NEW: Change Password View
+@login_required
+def change_password(request):
+    if request.method == 'POST':
+        user = request.user
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        if not user.check_password(current_password):
+            messages.error(request, 'Current password is incorrect!')
+            return redirect('profile')
+        
+        if new_password != confirm_password:
+            messages.error(request, 'New passwords do not match!')
+            return redirect('profile')
+        
+        if len(new_password) < 6:
+            messages.error(request, 'New password must be at least 6 characters!')
+            return redirect('profile')
+        
+        user.set_password(new_password)
+        user.save()
+        messages.success(request, 'Password changed successfully!')
+        return redirect('profile')
+    
+    return redirect('profile')
+
+# ✅ NEW: Renew Pass View
+@login_required
+def renew_pass(request):
+    if request.method == 'POST':
+        profile = request.user.profile
+        profile.is_pass_active = True
+        profile.pass_valid_until = timezone.now().date() + timedelta(days=30)
+        
+        if not profile.pass_id:
+            profile.pass_id = f"PASS-{random.randint(100000, 999999)}"
+        
+        profile.save()
+        messages.success(request, 'Transport pass renewed successfully!')
+        return redirect('profile')
+    
+    return redirect('profile')
 
 # ==================== EMAIL VERIFICATION & PASSWORD RESET ====================
 
