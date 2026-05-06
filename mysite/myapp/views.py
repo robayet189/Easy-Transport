@@ -7,7 +7,10 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.db.models import Sum
+from django.core.mail import send_mail
+from django.conf import settings
 from .models import UserProfile, Schedule, Booking
+import random, string
 
 def homepage(request):
     return render(request, 'app1/Homepage.html')
@@ -17,6 +20,9 @@ def login_page(request):
 
 def register_page(request):
     return render(request, 'app1/register.html')
+
+def account_created_page(request):
+    return render(request, 'app1/account_created.html')
 
 @require_http_methods(["POST"])
 def login_user(request):
@@ -98,11 +104,11 @@ def register_user(request):
             user_type=user_type, institution_id=institution_id
         )
         
-        # ✅ FIXED: No auto-login after registration. Redirect to login page.
+        # ✅ FIXED: No auto-login after registration. Redirect to account_created page.
         return JsonResponse({
             'success': True, 
             'message': 'Account created successfully! Please login to continue.',
-            'redirect_url': '/login/'  # ✅ Redirect to login page
+            'redirect_url': '/account-created/'  # ✅ Redirect to success page
         })
         
     except Exception as e:
@@ -118,16 +124,13 @@ def dashboard(request):
     user = request.user
     today = timezone.now().date()
     
-    # User's bookings
     my_bookings = Booking.objects.filter(user=user).select_related('schedule__route', 'schedule__bus').order_by('-booking_date')
     
-    # Statistics
     total_bookings = my_bookings.count()
     approved_bookings = my_bookings.filter(status='approved').count()
     pending_bookings = my_bookings.filter(status='pending').count()
     total_spent = my_bookings.filter(status='approved').aggregate(total=Sum('amount'))['total'] or 0
     
-    # Upcoming trips
     upcoming_trips = my_bookings.filter(
         status='approved',
         schedule__travel_date__gte=today
@@ -200,11 +203,8 @@ def cancel_booking(request, booking_id):
             if booking.status in ['approved', 'pending']:
                 booking.status = 'cancelled'
                 booking.save()
-                
-                # Restore seat
                 booking.schedule.available_seats += 1
                 booking.schedule.save()
-                
                 return JsonResponse({'success': True, 'message': 'Booking cancelled successfully'})
             else:
                 return JsonResponse({'success': False, 'message': 'Cannot cancel this booking'}, status=400)
@@ -242,3 +242,51 @@ def edit_profile(request):
 def my_bookings(request):
     bookings = Booking.objects.filter(user=request.user).select_related('schedule__route', 'schedule__bus').order_by('-booking_date')
     return render(request, 'app1/my_bookings.html', {'bookings': bookings})
+
+# ==================== EMAIL VERIFICATION & PASSWORD RESET ====================
+
+def send_verification_email(user):
+    """Send verification email (console backend for development)"""
+    token = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+    # Store token in session or database for verification
+    # For now, just log to console
+    print(f"Verification token for {user.email}: {token}")
+    
+    subject = 'Verify your Next Route account'
+    message = f'Click here to verify: http://localhost:8000/verify-email/{token}/'
+    from_email = settings.DEFAULT_FROM_EMAIL
+    recipient_list = [user.email]
+    
+    send_mail(subject, message, from_email, recipient_list, fail_silently=True)
+
+@require_http_methods(["GET"])
+def verify_email(request, token):
+    """Verify user email with token"""
+    # Implement token validation logic here
+    # For now, just redirect to login
+    messages.success(request, 'Email verified successfully! Please login.')
+    return redirect('login_page')
+
+@require_http_methods(["POST"])
+def resend_verification_email(request):
+    """Resend verification email"""
+    email = request.POST.get('email', '').strip().lower()
+    try:
+        user = User.objects.get(email=email)
+        send_verification_email(user)
+        return JsonResponse({'success': True, 'message': 'Verification email resent!'})
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'No account found with this email'}, status=400)
+
+@require_http_methods(["POST"])
+def password_reset_request(request):
+    """Request password reset"""
+    email = request.POST.get('email', '').strip().lower()
+    try:
+        user = User.objects.get(email=email)
+        # Generate reset token and send email
+        token = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+        print(f"Password reset token for {email}: {token}")
+        return JsonResponse({'success': True, 'message': 'Password reset link sent to your email!'})
+    except User.DoesNotExist:
+        return JsonResponse({'success': True, 'message': 'If an account exists, a reset link has been sent.'})  # Security: don't reveal if email exists

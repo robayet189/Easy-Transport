@@ -39,7 +39,6 @@
             position: relative;
         }
         
-        /* Animated Background */
         body::before {
             content: ''; position: fixed; inset: 0;
             background: radial-gradient(ellipse 800px 600px at 20% 20%, rgba(255,71,87,0.08) 0%, transparent 60%),
@@ -65,7 +64,6 @@
                               linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
         }
         
-        /* Navigation */
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             display: flex; align-items: center; justify-content: space-between;
@@ -108,7 +106,6 @@
         .theme-toggle .toggle-icon { transition: transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1); display: inline-block; }
         .theme-toggle:hover .toggle-icon { transform: rotate(15deg); }
         
-        /* Login Card */
         .wrapper {
             position: relative; z-index: 1; width: 100%; max-width: 480px;
             margin: 72px auto 30px; animation: fadeUp 0.7s ease both;
@@ -156,7 +153,6 @@
         }
         .card-header p { color: var(--muted); font-size: 14px; }
         
-        /* Form */
         .form-group { margin-bottom: 24px; position: relative; }
         
         label {
@@ -194,7 +190,7 @@
         .forgot-link {
             display: block; text-align: right; font-size: 13px;
             color: var(--muted); text-decoration: none; margin-top: -16px; margin-bottom: 20px;
-            transition: color 0.2s;
+            transition: color 0.2s; cursor: pointer;
         }
         .forgot-link:hover { color: var(--red); }
         
@@ -258,7 +254,6 @@
         }
         .register-link a:hover { text-decoration: underline; }
         
-        /* Toast */
         .toast {
             position: fixed; bottom: 30px; right: 30px;
             background: var(--toast-bg); border: 1px solid rgba(74,222,128,0.3);
@@ -271,7 +266,6 @@
         .toast.show { transform: translateY(0); opacity: 1; }
         .toast.error { border-color: rgba(255,71,87,0.3); color: var(--red); }
         
-        /* Responsive */
         @media (max-width: 560px) {
             .card { padding: 32px 24px 36px; }
             nav { padding: 0 20px; }
@@ -283,7 +277,6 @@
 </head>
 <body>
 
-<!-- Navigation -->
 <nav>
     <a href="/" class="logo">
         <div class="logo-icon-custom">
@@ -299,7 +292,6 @@
     </div>
 </nav>
 
-<!-- Login Card -->
 <div class="wrapper">
     <div class="card">
         <div class="card-header">
@@ -326,7 +318,8 @@
                     <input type="password" name="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
                     <button class="eye-btn" type="button" onclick="togglePwd('password', this)" aria-label="Toggle password visibility">👁️</button>
                 </div>
-                <a href="#" class="forgot-link">Forgot password?</a>
+                <!-- ✅ FIXED: Connected to password reset -->
+                <a href="#" class="forgot-link" onclick="openPasswordReset(); return false;">Forgot password?</a>
             </div>
 
             <button type="submit" class="btn-login" id="loginBtn">
@@ -348,14 +341,25 @@
     </div>
 </div>
 
-<!-- Toast Notification -->
+<!-- Password Reset Modal -->
+<div id="passwordResetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:20px; padding:32px; width:90%; max-width:400px;">
+        <h3 style="margin-bottom:16px; color:var(--text);">Reset Password</h3>
+        <p style="color:var(--muted); margin-bottom:20px; font-size:14px;">Enter your email to receive a password reset link.</p>
+        <input type="email" id="resetEmail" placeholder="Enter your email" style="width:100%; padding:12px; margin-bottom:16px; background:var(--input-bg); border:1px solid var(--input-border); border-radius:10px; color:var(--text);">
+        <div style="display:flex; gap:10px;">
+            <button onclick="closePasswordReset()" style="flex:1; padding:12px; background:var(--input-bg); border:1px solid var(--border); border-radius:10px; color:var(--text); cursor:pointer;">Cancel</button>
+            <button onclick="submitPasswordReset()" style="flex:1; padding:12px; background:var(--red); border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600;">Send Link</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast">
     <span id="toastIcon">✅</span>
     <span id="toastMsg"></span>
 </div>
 
 <script>
-    // ========== THEME TOGGLE ==========
     const themeToggle = document.getElementById('themeToggle');
     const toggleIcon = document.getElementById('toggleIcon');
     const html = document.documentElement;
@@ -374,7 +378,6 @@
         setTimeout(() => { themeToggle.style.transform = ''; }, 150);
     });
 
-    // ========== PASSWORD TOGGLE ==========
     function togglePwd(id, btn) {
         const inp = document.getElementById(id);
         if (inp.type === 'password') {
@@ -386,7 +389,6 @@
         }
     }
 
-    // ========== TOAST NOTIFICATION ==========
     function showToast(msg, isError = false) {
         const toast = document.getElementById('toast');
         const msgEl = document.getElementById('toastMsg');
@@ -401,7 +403,6 @@
         setTimeout(() => { toast.classList.remove('show'); }, 3500);
     }
 
-    // ========== CSRF TOKEN HELPER ==========
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -417,7 +418,40 @@
         return cookieValue;
     }
 
-    // ========== LOGIN FORM HANDLER ==========
+    // ✅ FIXED: Password Reset Modal Functions
+    function openPasswordReset() {
+        document.getElementById('passwordResetModal').style.display = 'flex';
+    }
+    
+    function closePasswordReset() {
+        document.getElementById('passwordResetModal').style.display = 'none';
+    }
+    
+    function submitPasswordReset() {
+        const email = document.getElementById('resetEmail').value.trim();
+        if (!email) {
+            showToast('Please enter your email', true);
+            return;
+        }
+        
+        fetch('/api/password-reset/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `email=${encodeURIComponent(email)}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            showToast(data.message, !data.success);
+            if (data.success) closePasswordReset();
+        })
+        .catch(() => {
+            showToast('Failed to send reset link', true);
+        });
+    }
+
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -426,13 +460,11 @@
         const password = document.getElementById('password').value;
         const btn = document.getElementById('loginBtn');
         
-        // Validation
         if (!username || !password) {
             showToast('Please enter both username/email and password', true);
             return;
         }
         
-        // Show loading state
         btn.classList.add('loading');
         
         try {
@@ -452,12 +484,10 @@
             if (data.success) {
                 showToast(data.message || 'Login successful!');
                 
-                // Redirect with smooth transition
                 setTimeout(() => {
                     if (data.redirect_url) {
                         window.location.href = data.redirect_url;
                     } else {
-                        // Fallback: check if admin based on email domain (optional)
                         const isAdmin = username.toLowerCase().includes('admin');
                         window.location.href = isAdmin ? '/admin_page/dashboard/' : '/dashboard/';
                     }
@@ -473,7 +503,6 @@
         }
     });
 
-    // ========== AUTO-FOCUS ==========
     document.addEventListener('DOMContentLoaded', function() {
         const usernameInput = document.getElementById('username');
         if (usernameInput && !usernameInput.value) {

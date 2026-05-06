@@ -8,6 +8,10 @@ urlpatterns = [
     path('api/login/', views.login_user, name='login_user'),
     path('register/', views.register_page, name='register_page'),
     path('api/register/', views.register_user, name='register_user'),
+    path('account-created/', views.account_created_page, name='account_created_page'),  # ✅ NEW
+    path('verify-email/<str:token>/', views.verify_email, name='verify_email'),  # ✅ NEW
+    path('api/resend-verification/', views.resend_verification_email, name='resend_verification'),  # ✅ NEW
+    path('api/password-reset/', views.password_reset_request, name='password_reset_request'),  # ✅ NEW
     path('logout/', views.logout_user, name='logout'),
 
     # ================= USER DASHBOARD & PROFILE =================

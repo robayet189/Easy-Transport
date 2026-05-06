@@ -23,7 +23,6 @@
       position: relative;
     }
 
-    /* ── Animated background orbs ── */
     .orb {
       position: absolute;
       border-radius: 50%;
@@ -55,7 +54,6 @@
       to   { transform: translate(30px, 20px) scale(1.08); }
     }
 
-    /* Floating particles */
     .particles { position: absolute; inset: 0; pointer-events: none; }
     .particle {
       position: absolute;
@@ -71,7 +69,6 @@
       100% { transform: translateY(-20px) scale(1); opacity: 0; }
     }
 
-    /* ── Card ── */
     .card {
       position: relative; z-index: 10;
       background: #1c1c2e;
@@ -84,8 +81,6 @@
         0 0 0 1px rgba(255,255,255,0.03),
         0 8px 40px rgba(0,0,0,0.6),
         0 0 80px rgba(123,47,190,0.12);
-
-      /* Entry animation */
       animation: popIn 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
     @keyframes popIn {
@@ -93,7 +88,6 @@
       to   { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    /* Shimmer border on top */
     .card::before {
       content: '';
       position: absolute;
@@ -101,12 +95,11 @@
       border-radius: 20px;
       padding: 1px;
       background: linear-gradient(135deg, rgba(0,200,160,0.35), rgba(255,71,87,0.15), transparent 60%);
-      -webkitmask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
       -webkit-mask-composite: xor; mask-composite: exclude;
       pointer-events: none;
     }
 
-    /* ── Success Icon ── */
     .icon-wrap {
       position: relative;
       width: 80px; height: 80px;
@@ -114,7 +107,6 @@
       animation: popIn 0.65s 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
 
-    /* Ripple rings */
     .ring {
       position: absolute; inset: -12px;
       border-radius: 50%;
@@ -140,7 +132,6 @@
       position: relative; z-index: 1;
     }
 
-    /* Animated checkmark SVG */
     .checkmark {
       width: 36px; height: 36px;
     }
@@ -162,14 +153,9 @@
       fill: none;
       animation: drawTick 0.35s 0.9s ease forwards;
     }
-    @keyframes drawCircle {
-      to { stroke-dashoffset: 0; }
-    }
-    @keyframes drawTick {
-      to { stroke-dashoffset: 0; }
-    }
+    @keyframes drawCircle { to { stroke-dashoffset: 0; } }
+    @keyframes drawTick { to { stroke-dashoffset: 0; } }
 
-    /* ── Text ── */
     .title {
       font-family: 'Syne', sans-serif;
       font-size: 26px; font-weight: 700;
@@ -189,7 +175,6 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* Email hint box */
     .email-hint {
       background: rgba(0, 200, 160, 0.06);
       border: 0.8px solid rgba(0, 200, 160, 0.2);
@@ -201,11 +186,8 @@
       line-height: 1.5;
       animation: fadeUp 0.5s 0.75s ease both;
     }
-    .email-hint span {
-      color: #00c8a0; font-weight: 600;
-    }
+    .email-hint span { color: #00c8a0; font-weight: 600; }
 
-    /* ── Button ── */
     .btn-login {
       display: inline-block;
       background: #ff4757;
@@ -219,6 +201,7 @@
       transition: transform 0.2s, box-shadow 0.2s;
       animation: fadeUp 0.5s 0.85s ease both;
       width: 100%;
+      text-decoration: none;
     }
     .btn-login:hover {
       transform: translateY(-3px);
@@ -226,7 +209,6 @@
     }
     .btn-login:active { transform: translateY(0); }
 
-    /* ── Confetti burst ── */
     .confetti-wrap {
       position: absolute; top: 0; left: 50%;
       transform: translateX(-50%);
@@ -243,7 +225,6 @@
       100% { transform: var(--tx) rotate(var(--rot)) scale(0.4); opacity: 0; }
     }
 
-    /* ── Progress dots ── */
     .dots {
       display: flex; justify-content: center; gap: 6px;
       margin-top: 24px;
@@ -255,7 +236,6 @@
     }
     .dot.active { background: #ff4757; }
 
-    /* ── Footer note ── */
     .resend-note {
       margin-top: 16px;
       font-size: 13px;
@@ -271,21 +251,14 @@
 </head>
 <body>
 
-  <!-- Background orbs -->
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
-
-  <!-- Floating particles -->
   <div class="particles" id="particles"></div>
 
-  <!-- Main Card -->
   <div class="card" id="card">
-
-    <!-- Confetti container -->
     <div class="confetti-wrap" id="confetti"></div>
 
-    <!-- Success Icon with animated checkmark -->
     <div class="icon-wrap">
       <div class="ring"></div>
       <div class="ring"></div>
@@ -297,50 +270,45 @@
       </div>
     </div>
 
-    <!-- Text -->
     <h2 class="title">Account Created!</h2>
     <p class="subtitle">Your account is ready. One last step to go! 🚀</p>
 
-    <!-- Email hint -->
+    <!-- ✅ FIXED: Updated message for console email backend -->
     <div class="email-hint">
-      📧 We sent a verification link to your email.<br/>
-      <span>Check your inbox</span> and click the link to activate your account.
+      ✅ Your account has been created successfully!<br/>
+      <span>Please proceed to login</span> with your credentials.
     </div>
 
-    <!-- CTA Button -->
-  <a class="btn-login" href="{% url 'login_page' %}">Go to Login</a>
+    <!-- ✅ FIXED: Using Django URL tag -->
+    <a class="btn-login" href="{% url 'login_page' %}">Go to Login</a>
 
-    <!-- Step indicator -->
     <div class="dots">
       <div class="dot"></div>
       <div class="dot"></div>
       <div class="dot active"></div>
     </div>
 
-    <!-- Resend note -->
+    <!-- ✅ FIXED: Removed non-functional resend link -->
     <p class="resend-note">
-      Didn't get the email? <a href="#">Resend verification</a>
+      Need help? <a href="{% url 'login_page' %}">Contact Support</a>
     </p>
   </div>
 
-
   <script>
-    /* ── Generate floating particles ── */
     const container = document.getElementById('particles');
     for (let i = 0; i < 28; i++) {
       const p = document.createElement('div');
       p.className = 'particle';
-      p.style.left     = Math.random() * 100 + 'vw';
-      p.style.bottom   = '0';
-      p.style.width    = (Math.random() * 3 + 1.5) + 'px';
-      p.style.height   = p.style.width;
-      p.style.animationDuration  = (Math.random() * 12 + 8) + 's';
-      p.style.animationDelay     = (Math.random() * 10) + 's';
-      p.style.opacity  = Math.random() * 0.4 + 0.1;
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.bottom = '0';
+      p.style.width = (Math.random() * 3 + 1.5) + 'px';
+      p.style.height = p.style.width;
+      p.style.animationDuration = (Math.random() * 12 + 8) + 's';
+      p.style.animationDelay = (Math.random() * 10) + 's';
+      p.style.opacity = Math.random() * 0.4 + 0.1;
       container.appendChild(p);
     }
 
-    /* ── Confetti burst on load ── */
     const colors = ['#ff4757','#ff6b35','#00c8a0','#a855f7','#fbbf24','#60a5fa'];
     const confettiWrap = document.getElementById('confetti');
 
@@ -348,18 +316,18 @@
       for (let i = 0; i < 22; i++) {
         const piece = document.createElement('div');
         piece.className = 'confetti-piece';
-        const angle  = (Math.random() * 360);
-        const dist   = Math.random() * 160 + 60;
-        const tx     = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist + 20}px)`;
-        const rot    = (Math.random() * 720 - 360) + 'deg';
+        const angle = (Math.random() * 360);
+        const dist = Math.random() * 160 + 60;
+        const tx = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist + 20}px)`;
+        const rot = (Math.random() * 720 - 360) + 'deg';
         piece.style.setProperty('--tx', tx);
         piece.style.setProperty('--rot', rot);
-        piece.style.background      = colors[Math.floor(Math.random() * colors.length)];
-        piece.style.top             = '0px';
-        piece.style.left            = (Math.random() * 60 - 30) + 'px';
-        piece.style.animationDelay  = (Math.random() * 0.3 + 0.8) + 's';
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.top = '0px';
+        piece.style.left = (Math.random() * 60 - 30) + 'px';
+        piece.style.animationDelay = (Math.random() * 0.3 + 0.8) + 's';
         piece.style.animationDuration = (Math.random() * 0.6 + 0.9) + 's';
-        piece.style.borderRadius    = Math.random() > 0.5 ? '50%' : '2px';
+        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
         confettiWrap.appendChild(piece);
       }
     }
