@@ -66,4 +66,7 @@ urlpatterns = [
     path('seat-selection/<int:schedule_id>/', views.seat_selection, name='seat_selection'),
     path('confirm-booking-seat/', views.confirm_booking_seat, name='confirm_booking_seat'),
     path('booking-confirmation-seat/<str:booking_id>/', views.booking_confirmation_seat, name='booking_confirmation_seat'),
+
+    path('dashboard/emergency-alert',views.emergency, name='emergency_alert'),
+    path('admin-page/admin-alert',views_admin.admin_alert, name='admin_alert'),
 ]
