@@ -638,4 +638,18 @@ def confirm_booking_seat(request):
 def booking_confirmation_seat(request, booking_id):
     """Step 4: Final Booking Confirmation Page"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
+<<<<<<< HEAD
     return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
+
+@login_required
+def emergency(request):
+    if request.method=='POST':
+        name=request.POST.get('name')
+        id=request.POST.get('id')
+        route=request.POST.get('route')
+
+    context={'name':name ,'id':id,'route':route}
+    return render(request,'app1/partials/EmergencyAlert.html',context )
+=======
+    return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
+>>>>>>> main
