@@ -198,7 +198,7 @@ def admin_fleet(request):
         'buses': buses, 
         'total_buses': buses.count(), 
         'active_buses': buses.filter(is_active=True).count(),
-        'maintenance_buses': 0,  # Add maintenance logic if needed
+        'maintenance_buses': 0,
         'inactive_buses': buses.filter(is_active=False).count(),
     }
     return render(request, 'app1/admin/admin_fleet.html', context)
@@ -275,6 +275,22 @@ def admin_get_bus(request, bus_id):
                     'has_wifi': bus.has_wifi,
                     'is_active': bus.is_active,
                 }
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
+# ✅ NEW: Added to populate Bus dropdown in Schedule Modal
+@login_required
+@user_passes_test(is_admin)
+def admin_get_buses(request):
+    """Get all active buses for schedule creation"""
+    if request.method == 'GET':
+        try:
+            buses = Bus.objects.filter(is_active=True).values('id', 'bus_number', 'capacity')
+            return JsonResponse({
+                'success': True,
+                'buses': list(buses)
             })
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
