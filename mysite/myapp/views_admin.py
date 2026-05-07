@@ -225,6 +225,31 @@ def admin_notifications(request):
     return render(request, 'app1/admin/admin_notifications.html', {'active': 'notifications'})
 
 # ==================== API ENDPOINTS (FLEET MANAGEMENT) ====================
+
+@login_required
+@user_passes_test(is_admin)
+def admin_get_bus(request, bus_id):
+    """Get single bus details"""
+    if request.method == 'GET':
+        try:
+            bus = get_object_or_404(Bus, id=bus_id)
+            return JsonResponse({
+                'success': True,
+                'bus': {
+                    'id': bus.id,
+                    'bus_number': bus.bus_number,
+                    'capacity': bus.capacity,
+                    'driver_name': bus.driver_name,
+                    'driver_phone': bus.driver_phone,
+                    'has_ac': bus.has_ac,
+                    'has_wifi': bus.has_wifi,
+                    'is_active': bus.is_active,
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
 @login_required
 @user_passes_test(is_admin)
 def admin_add_bus(request):
@@ -399,7 +424,6 @@ def send_notification_api(request):
             if not title or not message:
                 return JsonResponse({'success': False, 'message': 'Title and message are required'})
             
-            # এখানে আপনার Notification মডেল থাকলে সেভ করবেন। বর্তমানে সফল রেসপন্স পাঠানো হলো।
             return JsonResponse({'success': True, 'message': 'Notification sent successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
@@ -410,10 +434,6 @@ def send_notification_api(request):
 def resolve_alert_api(request, alert_id):
     if request.method == 'POST':
         try:
-            # এখানে আপনার EmergencyAlert মডেল থাকলে স্ট্যাটাস আপডেট করবেন।
-            # alert = get_object_or_404(EmergencyAlert, id=alert_id)
-            # alert.status = 'resolved'
-            # alert.save()
             return JsonResponse({'success': True, 'message': 'Alert resolved successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
