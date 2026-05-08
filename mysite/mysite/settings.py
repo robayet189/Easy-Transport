@@ -24,16 +24,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-<<<<<<< HEAD
     'rest_framework',
     'drf_spectacular',
     'channels',
     'myapp',
-=======
-    'myapp',
-    'rest_framework',
-    'channels'
->>>>>>> samia-dev
 ]
 
 MIDDLEWARE = [
@@ -108,11 +102,9 @@ LOGIN_URL = '/login/'
 
 # Email Configuration (Console backend for development)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-<<<<<<< HEAD
 DEFAULT_FROM_EMAIL = 'Next Route <noreply@nextroute.com>'
 
 # Channel Layers for WebSocket (Chat system)
-=======
 
 DEFAULT_FROM_EMAIL = 'Next Route Transport <noreply@nextroute.com>'
 
@@ -129,14 +121,12 @@ DEFAULT_FROM_EMAIL = 'Next Route <noreply@nextroute.com>'
 DEFAULT_FROM_EMAIL = 'Next Route <noreply@nextroute.com>'
 
 # Redis for production (use in-memory for development)
->>>>>>> samia-dev
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 
-<<<<<<< HEAD
 # DRF Spectacular Settings for API Documentation
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -148,7 +138,5 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
-=======
 DEFAULT_FROM_EMAIL = 'Next Route <noreply@nextroute.com>'
 
->>>>>>> samia-dev
