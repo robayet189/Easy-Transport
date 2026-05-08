@@ -89,4 +89,11 @@ urlpatterns = [
 
     #tracking
     path('track-bus/', views.track_bus, name='track_bus'),
+
+    # Bus Tracking API URLs
+    path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='update_bus_location'),
+    path('api/bus/<int:bus_id>/location/', views.get_bus_location, name='get_bus_location'),
+    path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
+
+    path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
 ]
