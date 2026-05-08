@@ -114,3 +114,13 @@ path('admin_page/acknowledge-alert/<int:alert_id>/', views_admin.admin_acknowled
 path('admin_page/resolve-alert/<int:alert_id>/', views_admin.admin_resolve_alert, name='admin_resolve_alert'),
 path('admin_page/add-emergency-contact/', views_admin.admin_add_emergency_contact, name='add_emergency_contact'),
 path('admin_page/delete-emergency-contact/<int:contact_id>/', views_admin.admin_delete_emergency_contact, name='delete_emergency_contact'),
+
+
+
+
+# ==================== PAYMENT URLs ====================
+path('payments/', views.payment_page, name='payments'),
+path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
+path('payment-history/', views.payment_history, name='payment_history'),
+path('payment-success/<str:transaction_id>/', views.payment_success, name='payment_success'),
+path('invoice/<str:transaction_id>/', views.invoice_download, name='invoice_download'),

@@ -17,6 +17,9 @@ from django.urls import reverse
 from .models import UserProfile, Route, Bus, Schedule, Booking
 import json, random, string, re
 from datetime import datetime, timedelta
+from .models import PaymentTransaction, UserPass, PaymentMethod
+import json
+
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -954,3 +957,130 @@ def emergency_history(request):
     alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')
     context = {'alerts': alerts}
     return render(request, 'app1/emergency_history.html', context)
+
+
+
+
+
+
+@login_required
+def payment_page(request):
+    """Main payment page with pass options"""
+    payment_methods = PaymentMethod.objects.filter(is_active=True)
+    
+    # Get user's current active pass
+    current_pass = UserPass.objects.filter(
+        user=request.user, 
+        is_active=True, 
+        end_date__gte=timezone.now().date()
+    ).first()
+    
+    # Get payment history
+    payment_history = PaymentTransaction.objects.filter(user=request.user)[:10]
+    
+    context = {
+        'current_pass': current_pass,
+        'payment_methods': payment_methods,
+        'payment_history': payment_history,
+    }
+    return render(request, 'app1/payments.html', context)
+
+
+@login_required
+def purchase_pass(request):
+    """Purchase a transport pass (Monthly or Semester)"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            pass_type = data.get('pass_type')
+            payment_method = data.get('payment_method')
+            
+            if pass_type not in ['monthly', 'semester']:
+                return JsonResponse({'success': False, 'error': 'Invalid pass type'})
+            
+            # Set price and validity
+            if pass_type == 'monthly':
+                amount = 1200
+                validity_days = 30
+            else:
+                amount = 5500
+                validity_days = 120  # Approximately 4 months
+            
+            start_date = timezone.now().date()
+            end_date = start_date + timedelta(days=validity_days)
+            
+            # Create transaction
+            transaction = PaymentTransaction.objects.create(
+                user=request.user,
+                payment_method=payment_method,
+                payment_type='pass',
+                amount=amount,
+                status='pending',
+                pass_type=pass_type,
+                pass_valid_from=start_date,
+                pass_valid_until=end_date,
+            )
+            
+            # In demo, mark as completed immediately
+            transaction.status = 'completed'
+            transaction.save()
+            
+            # Create user pass
+            UserPass.objects.create(
+                user=request.user,
+                pass_type=pass_type,
+                transaction=transaction,
+                start_date=start_date,
+                end_date=end_date,
+                is_active=True
+            )
+            
+            # Update UserProfile pass info
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            profile.is_pass_active = True
+            profile.pass_valid_until = end_date
+            profile.pass_id = f"PASS-{request.user.id}-{timezone.now().year}"
+            profile.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'{pass_type.capitalize()} Pass purchased successfully!',
+                'transaction_id': transaction.transaction_id,
+                'valid_until': end_date.strftime('%Y-%m-%d')
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+def payment_history(request):
+    """View all payment transactions"""
+    transactions = PaymentTransaction.objects.filter(user=request.user).order_by('-created_at')
+    
+    context = {
+        'transactions': transactions,
+        'total_spent': sum(t.amount for t in transactions if t.status == 'completed'),
+        'active_count': transactions.filter(status='completed').count(),
+    }
+    return render(request, 'app1/payment_history.html', context)
+
+
+@login_required
+def payment_success(request, transaction_id):
+    """Payment success page"""
+    transaction = get_object_or_404(PaymentTransaction, transaction_id=transaction_id, user=request.user)
+    return render(request, 'app1/payment_success.html', {'transaction': transaction})
+
+
+@login_required
+def invoice_download(request, transaction_id):
+    """Download payment invoice as PDF"""
+    transaction = get_object_or_404(PaymentTransaction, transaction_id=transaction_id, user=request.user)
+    
+    # Simple HTML invoice (can be converted to PDF later)
+    context = {'transaction': transaction}
+    return render(request, 'app1/invoice.html', context)
+
