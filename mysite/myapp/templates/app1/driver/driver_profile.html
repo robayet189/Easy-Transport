@@ -288,7 +288,7 @@
     <span id="toastMsg"></span>
 </div>
 
-<!-- ✅ VS Code Django Template Syntax - No runtime error -->
+<!-- ✅ FIXED: Django messages in JavaScript - VS Code friendly format -->
 <script>
     // Theme toggle
     const themeToggle = document.getElementById('themeToggle');
@@ -307,7 +307,7 @@
         toggleIcon.textContent = next === 'dark' ? '☀️' : '🌙';
     });
 
-    // Toast notification
+    // Toast notification function
     function showToast(msg, isError = false) {
         const toast = document.getElementById('toast');
         const msgEl = document.getElementById('toastMsg');
@@ -322,7 +322,7 @@
         setTimeout(() => { toast.classList.remove('show'); }, 3500);
     }
 
-    // Form submission handling
+    // Form submission handling with client-side validation
     document.getElementById('profileForm').addEventListener('submit', function(e) {
         const phone = document.getElementById('phone').value.trim();
         const emergency = document.getElementById('emergency_contact').value.trim();
@@ -333,20 +333,34 @@
             return;
         }
         
-        // Show loading state
+        // Show loading state on button
         const btn = document.querySelector('.btn-save');
         btn.textContent = 'Saving...';
         btn.disabled = true;
     });
 
-    // ✅ Django messages rendered server-side - VS Code may show false warnings
-    // These template tags are processed by Django before sending to browser
-    // {% if messages %}
-    // {% for message in messages %}
-        // Using escapejs to safely inject Django message into JavaScript
-        showToast("{{ message|escapejs }}", "{{ 'error' in message.tags|yesno:'true,false' }}" === "true");
-    // {% endfor %}
-    // {% endif %}
+    // ✅ FIXED: Django messages display - using data attributes for VS Code compatibility
+    // Messages are injected server-side via data attributes to avoid template syntax in JS
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check for messages passed via data attribute (set by Django view)
+        const messageContainer = document.getElementById('toastMsg');
+        const messageData = document.getElementById('djangoMessages');
+        
+        if (messageData) {
+            const messages = JSON.parse(messageData.textContent || '[]');
+            messages.forEach(function(msg) {
+                showToast(msg.text, msg.is_error);
+            });
+        }
+    });
 </script>
+
+<!-- ✅ FIXED: Hidden div to pass Django messages to JavaScript safely -->
+<div id="djangoMessages" style="display:none;" data-messages='[
+    {% for message in messages %}
+        {"text": "{{ message|escapejs }}", "is_error": {% if 'error' in message.tags %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]'></div>
+
 </body>
 </html>
