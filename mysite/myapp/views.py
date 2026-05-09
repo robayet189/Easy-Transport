@@ -103,14 +103,13 @@ def register_user(request):
         # ✅ FIXED: ONLY create Driver record if user_type is 'driver'
         if user_type == 'driver':
             # Generate UNIQUE license_number to avoid UNIQUE constraint error
-            # Format: DL-YYYYMMDD-XXXXX-UserID
             unique_license = f"DL-{timezone.now().strftime('%Y%m%d')}-{random.randint(10000, 99999)}-{user.id}"
             
             # Check if Driver already exists (safety check)
             if not Driver.objects.filter(user=user).exists():
                 Driver.objects.create(
                     user=user,
-                    license_number=unique_license,  # ✅ Unique license number
+                    license_number=unique_license,
                     license_expiry=timezone.now().date() + timedelta(days=365*5),
                     phone=phone,
                     address='',
@@ -126,7 +125,6 @@ def register_user(request):
         })
         
     except Exception as e:
-        # Log the error for debugging
         print(f"Registration error: {str(e)}")
         return JsonResponse({'success': False, 'message': f'Registration failed: {str(e)}'}, status=500)
 
@@ -153,33 +151,27 @@ def login_user(request):
     if user is not None:
         login(request, user)
         
-        # ✅ FIXED: Role-based redirection - Check UserProfile.user_type FIRST for reliability
-        redirect_url = '/dashboard/'  # Default fallback
+        # ✅ FIXED: Role-based redirection
+        redirect_url = '/dashboard/'
         
         try:
-            # First check: UserProfile.user_type (most reliable for all users)
             if hasattr(user, 'profile'):
                 user_type = user.profile.user_type.lower()
                 
                 if user_type == 'driver':
-                    # Double-check: ensure Driver model instance exists and is active
                     if hasattr(user, 'driver_profile') and user.driver_profile.is_active:
                         redirect_url = '/driver/dashboard/'
                     else:
-                        # Fallback: if Driver instance doesn't exist but user_type is driver
                         redirect_url = '/driver/dashboard/'
                 elif user_type == 'admin':
                     redirect_url = '/admin_page/dashboard/'
                 else:
                     redirect_url = '/dashboard/'
-            # Second check: direct driver_profile relationship (for manually created drivers)
             elif hasattr(user, 'driver_profile') and user.driver_profile.is_active:
                 redirect_url = '/driver/dashboard/'
-            # Default to user dashboard
             else:
                 redirect_url = '/dashboard/'
         except Exception:
-            # Fallback to default if any error occurs
             redirect_url = '/dashboard/'
         
         full_name = user.get_full_name() or user.username
@@ -916,7 +908,7 @@ def close_chat(request, room_id):
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 
-# ==================== DRIVER MODULE VIEWS (NEW - For driver_dashboard.html) ====================
+# ==================== DRIVER MODULE VIEWS ====================
 
 def driver_login_page(request):
     """Driver login page"""
@@ -1006,7 +998,7 @@ def driver_dashboard(request):
 
 @login_required
 def driver_profile(request):
-    """Driver profile page - FIXED: Proper POST handling and validation"""
+    """✅ FIXED: Driver profile page - Edit Profile working properly"""
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1014,24 +1006,24 @@ def driver_profile(request):
     driver = request.user.driver_profile
     
     if request.method == 'POST':
-        # ✅ FIXED: Get and validate form data
+        # Get form data
         phone = request.POST.get('phone', '').strip()
         address = request.POST.get('address', '').strip()
         emergency_contact = request.POST.get('emergency_contact', '').strip()
         
-        # Basic validation
+        # Validation
         if not phone or not emergency_contact:
             messages.error(request, 'Phone and Emergency Contact are required.')
             return redirect('driver_profile')
         
-        # Update driver fields
+        # Update and save
         driver.phone = phone
         driver.address = address
         driver.emergency_contact = emergency_contact
         driver.save()
         
         messages.success(request, 'Profile updated successfully!')
-        return redirect('driver_profile')
+        return redirect('driver_profile')  # Redirect to same page to show updated data
     
     context = {'driver': driver}
     return render(request, 'app1/driver/driver_profile.html', context)
@@ -1125,7 +1117,8 @@ def update_stop_status(request, stop_id):
 
 @login_required
 def driver_logout(request):
-    """Driver logout"""
+    """✅ FIXED: Driver logout - Redirects to homepage, NOT driver_login"""
     logout(request)
+    request.session.flush()  # Clear all session data
     messages.success(request, 'Logged out successfully.')
-    return redirect('driver_login')
+    return redirect('homepage')  # ✅ FIXED: Redirect to homepage
