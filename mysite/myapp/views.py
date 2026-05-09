@@ -131,20 +131,21 @@ def login_user(request):
     if user is not None:
         login(request, user)
         
-        # ✅ FIXED: Role-based redirection (Driver, Admin, User)
-        user_type = 'student'
-        if hasattr(user, 'profile'):
-            user_type = user.profile.user_type.lower()
+        # ✅ FIXED: Role-based redirection (Driver first, then Admin, then User)
+        redirect_url = '/dashboard/'  # Default fallback
         
-        if user_type == 'admin':
-            redirect_url = '/admin_page/dashboard/'
-        elif user_type == 'driver':
+        # Check if user is a driver (has driver_profile and is active)
+        if hasattr(user, 'driver_profile') and user.driver_profile.is_active:
             redirect_url = '/driver/dashboard/'
+        # Check if user is admin via UserProfile
+        elif hasattr(user, 'profile') and user.profile.user_type.lower() == 'admin':
+            redirect_url = '/admin_page/dashboard/'
+        # Regular user (student/faculty/staff)
         else:
             redirect_url = '/dashboard/'
-            
+        
         full_name = user.get_full_name() or user.username
-        msg = f'Welcome back Admin, {full_name}!' if user_type == 'admin' else f'Welcome back, {full_name}!'
+        msg = f'Welcome back Admin, {full_name}!' if 'admin' in redirect_url else f'Welcome back, {full_name}!'
         
         return JsonResponse({'success': True, 'message': msg, 'redirect_url': redirect_url})
     
