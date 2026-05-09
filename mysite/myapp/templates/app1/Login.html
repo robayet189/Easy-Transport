@@ -318,7 +318,6 @@
                     <input type="password" name="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
                     <button class="eye-btn" type="button" onclick="togglePwd('password', this)" aria-label="Toggle password visibility">👁️</button>
                 </div>
-                <!-- ✅ FIXED: Connected to password reset -->
                 <a href="#" class="forgot-link" onclick="openPasswordReset(); return false;">Forgot password?</a>
             </div>
 
@@ -418,7 +417,6 @@
         return cookieValue;
     }
 
-    // ✅ FIXED: Password Reset Modal Functions
     function openPasswordReset() {
         document.getElementById('passwordResetModal').style.display = 'flex';
     }
@@ -452,10 +450,10 @@
         });
     }
 
+    // ✅ FIXED: Proper error handling instead of fake "internet" error
     document.getElementById('loginForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const form = e.target;
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         const btn = document.getElementById('loginBtn');
@@ -479,25 +477,27 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
             
+            // ✅ FIXED: Handle non-200 responses properly
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Server error' }));
+                throw new Error(errorData.message || `HTTP ${response.status}`);
+            }
+            
             const data = await response.json();
             
             if (data.success) {
                 showToast(data.message || 'Login successful!');
-                
                 setTimeout(() => {
-                    if (data.redirect_url) {
-                        window.location.href = data.redirect_url;
-                    } else {
-                        const isAdmin = username.toLowerCase().includes('admin');
-                        window.location.href = isAdmin ? '/admin_page/dashboard/' : '/dashboard/';
-                    }
+                    // ✅ Uses backend redirect_url directly (handles driver/admin/user)
+                    window.location.href = data.redirect_url || '/dashboard/';
                 }, 1000);
             } else {
                 showToast(data.message || 'Invalid credentials', true);
             }
         } catch (error) {
             console.error('Login error:', error);
-            showToast('Connection failed. Please check your internet.', true);
+            // ✅ Shows actual error instead of generic "check internet"
+            showToast(error.message || 'Login failed. Please try again.', true);
         } finally {
             btn.classList.remove('loading');
         }
