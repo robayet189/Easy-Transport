@@ -14,7 +14,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
-from .models import UserProfile, Route, Bus, Schedule, Booking
+from .models import UserProfile, Route, Bus, Schedule, Booking, BusLocation, Driver, Trip, TripStop, VehicleIssue
 import json, random, string, re
 from datetime import datetime, timedelta
 
@@ -138,7 +138,16 @@ def login_user(request):
         except:
             is_admin = user.is_superuser
         
-        redirect_url = '/admin_page/dashboard/' if is_admin else '/dashboard/'
+        # ✅ ADDED: Check if driver and redirect to driver dashboard
+        is_driver = hasattr(user, 'driver_profile') and user.driver_profile.is_active
+        
+        if is_driver:
+            redirect_url = '/driver/dashboard/'
+        elif is_admin:
+            redirect_url = '/admin_page/dashboard/'
+        else:
+            redirect_url = '/dashboard/'
+        
         full_name = user.get_full_name() or user.username
         msg = f'Welcome back Admin, {full_name}!' if is_admin else f'Welcome back, {full_name}!'
         
@@ -546,7 +555,6 @@ def confirm_booking(request):
         schedule = get_object_or_404(Schedule, id=schedule_id)
         total_amount = schedule.fare
         
-        # ✅ FIXED: Removed travel_date (not a Booking model field)
         booking = Booking.objects.create(
             user=request.user, schedule=schedule,
             seat_number=seat_number,
@@ -619,7 +627,6 @@ def confirm_booking_seat(request):
         schedule = get_object_or_404(Schedule, id=schedule_id)
         total_amount = schedule.fare
         
-        # ✅ FIXED: Removed travel_date (not a Booking model field)
         booking = Booking.objects.create(
             user=request.user, schedule=schedule,
             seat_number=seat_number,
@@ -647,8 +654,7 @@ def track_bus(request):
     return render(request, 'app1/track_bus.html')
 
 
-
-    # ================= BUS TRACKING API (DRF) =================
+# ==================== BUS TRACKING API (DRF) ====================
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -672,11 +678,6 @@ def update_bus_location(request, bus_id):
             latitude=lat,
             longitude=lng
         )
-        
-        # Update bus current location (if you add fields)
-        # bus.current_lat = lat
-        # bus.current_lng = lng
-        # bus.save()
         
         return Response({"message": "Location updated", "bus_id": bus_id, "lat": lat, "lng": lng})
     
@@ -723,7 +724,6 @@ def get_all_buses_location(request):
     return Response(data)
 
 
-
 @login_required
 def track_bus_api(request):
     """Bus tracking page with Leaflet map and DRF API"""
@@ -739,10 +739,8 @@ from .models import ChatRoom, ChatMessage
 def chat_list(request):
     """User's chat rooms list"""
     if request.user.profile.user_type == 'admin':
-        # Admin sees all chat rooms
         chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user')
     else:
-        # User sees their own chat rooms
         chat_rooms = ChatRoom.objects.filter(user=request.user, is_active=True)
     
     context = {
@@ -757,12 +755,10 @@ def chat_room(request, room_id):
     """Specific chat room view"""
     room = get_object_or_404(ChatRoom, id=room_id)
     
-    # Check permission
     if request.user.profile.user_type != 'admin' and room.user != request.user:
         messages.error(request, 'You do not have permission to view this chat.')
         return redirect('chat_list')
     
-    # Mark messages as read
     ChatMessage.objects.filter(room=room, is_read=False).exclude(sender=request.user).update(is_read=True)
     
     context = {
@@ -782,18 +778,15 @@ def start_chat(request, booking_id=None):
         
         user = get_object_or_404(User, id=user_id)
         
-        # Check if chat room already exists between user and admin
         existing_room = ChatRoom.objects.filter(user=user, is_active=True).first()
         if existing_room:
             return redirect('chat_room', room_id=existing_room.id)
         
-        # Create new chat room
         room = ChatRoom.objects.create(
             user=user,
             admin=request.user if request.user.profile.user_type == 'admin' else None
         )
         
-        # Add initial message
         ChatMessage.objects.create(
             room=room,
             sender=request.user,
@@ -811,7 +804,6 @@ def send_chat_message(request, room_id):
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         
-        # Check permission
         if request.user.profile.user_type != 'admin' and room.user != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
         
@@ -825,7 +817,6 @@ def send_chat_message(request, room_id):
             message=message_text
         )
         
-        # Update room timestamp
         room.save()
         
         return JsonResponse({
@@ -874,14 +865,12 @@ def close_chat(request, room_id):
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         
-        # Only admin can close chats
         if request.user.profile.user_type != 'admin':
             return JsonResponse({'success': False, 'error': 'Permission denied'})
         
         room.is_active = False
         room.save()
         
-        # Add closing message
         ChatMessage.objects.create(
             room=room,
             sender=request.user,
@@ -891,3 +880,219 @@ def close_chat(request, room_id):
         return JsonResponse({'success': True, 'message': 'Chat closed successfully'})
     
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+# ==================== DRIVER MODULE VIEWS (NEW - For driver_dashboard.html) ====================
+# ✅ ADDED: Driver login page
+def driver_login_page(request):
+    """Driver login page"""
+    if request.user.is_authenticated and hasattr(request.user, 'driver_profile'):
+        return redirect('driver_dashboard')
+    return render(request, 'app1/driver/driver_login.html')
+
+# ✅ ADDED: Driver login handler
+@require_http_methods(["POST"])
+def driver_login(request):
+    """Driver login handler"""
+    username = request.POST.get('username', '').strip()
+    password = request.POST.get('password', '')
+    
+    user = authenticate(request, username=username, password=password)
+    
+    if user is not None:
+        if hasattr(user, 'driver_profile'):
+            driver = user.driver_profile
+            if driver.is_approved:
+                if driver.is_active:
+                    login(request, user)
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Login successful',
+                        'redirect_url': '/driver/dashboard/'
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Your account is deactivated. Contact admin.'
+                    }, status=403)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Your account is pending approval. Contact admin.'
+                }, status=403)
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'You are not registered as a driver.'
+            }, status=403)
+    else:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid username or password'
+        }, status=401)
+
+# ✅ ADDED: Driver dashboard view - MAIN VIEW FOR driver_dashboard.html
+@login_required
+def driver_dashboard(request):
+    """Driver dashboard - shows assigned trips and stats"""
+    if not hasattr(request.user, 'driver_profile'):
+        messages.error(request, 'You are not registered as a driver.')
+        return redirect('homepage')
+    
+    driver = request.user.driver_profile
+    today = timezone.now().date()
+    
+    # Get today's trips for this driver
+    today_trips = Trip.objects.filter(
+        driver=driver,
+        travel_date=today
+    ).select_related('route', 'bus').order_by('departure_time')
+    
+    # Get upcoming trips
+    upcoming_trips = Trip.objects.filter(
+        driver=driver,
+        travel_date__gt=today,
+        status='pending'
+    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
+    
+    # Get ongoing trip if any
+    ongoing_trip = Trip.objects.filter(
+        driver=driver,
+        status='ongoing'
+    ).select_related('route', 'bus').first()
+    
+    # Get passenger count for today's trips (mock data for template)
+    passenger_count = 24  # Mock value - replace with actual booking count
+    
+    context = {
+        'driver': driver,
+        'today_trips': today_trips,
+        'upcoming_trips': upcoming_trips,
+        'ongoing_trip': ongoing_trip,
+        'passenger_count': passenger_count,
+        'trips_completed': driver.trips.filter(status='completed').count(),
+        'today_earnings': 480,  # Mock value
+    }
+    
+    return render(request, 'app1/driver/driver_dashboard.html', context)
+
+# ✅ ADDED: Driver profile view
+@login_required
+def driver_profile(request):
+    """Driver profile page"""
+    if not hasattr(request.user, 'driver_profile'):
+        messages.error(request, 'You are not registered as a driver.')
+        return redirect('homepage')
+    
+    driver = request.user.driver_profile
+    
+    if request.method == 'POST':
+        driver.phone = request.POST.get('phone', driver.phone)
+        driver.address = request.POST.get('address', driver.address)
+        driver.emergency_contact = request.POST.get('emergency_contact', driver.emergency_contact)
+        driver.save()
+        
+        messages.success(request, 'Profile updated successfully!')
+        return redirect('driver_profile')
+    
+    context = {'driver': driver}
+    return render(request, 'app1/driver/driver_profile.html', context)
+
+# ✅ ADDED: Trip detail view
+@login_required
+def trip_detail(request, trip_id):
+    """View trip details with stops"""
+    if not hasattr(request.user, 'driver_profile'):
+        messages.error(request, 'You are not registered as a driver.')
+        return redirect('homepage')
+    
+    trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
+    stops = trip.stops.all().order_by('stop_order')
+    
+    context = {
+        'trip': trip,
+        'stops': stops,
+    }
+    return render(request, 'app1/driver/trip_detail.html', context)
+
+# ✅ ADDED: Start trip action
+@login_required
+@require_http_methods(["POST"])
+def start_trip(request, trip_id):
+    """Start a trip"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
+    
+    trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
+    
+    if trip.status == 'pending':
+        trip.status = 'ongoing'
+        trip.save()
+        return JsonResponse({
+            'success': True,
+            'message': 'Trip started successfully'
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'message': 'Trip cannot be started in current status'
+        }, status=400)
+
+# ✅ ADDED: Complete trip action
+@login_required
+@require_http_methods(["POST"])
+def complete_trip(request, trip_id):
+    """Complete a trip"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
+    
+    trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
+    
+    if trip.status == 'ongoing':
+        trip.status = 'completed'
+        trip.arrival_time = timezone.now().time()
+        trip.save()
+        return JsonResponse({
+            'success': True,
+            'message': 'Trip completed successfully'
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'message': 'Trip cannot be completed in current status'
+        }, status=400)
+
+# ✅ ADDED: Update stop status
+@login_required
+@require_http_methods(["POST"])
+def update_stop_status(request, stop_id):
+    """Update stop arrival/departure"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
+    
+    stop = get_object_or_404(TripStop, id=stop_id)
+    
+    if stop.trip.driver != request.user.driver_profile:
+        return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
+    
+    action = request.POST.get('action')
+    
+    if action == 'arrive':
+        stop.arrival_time = timezone.now().time()
+        stop.save()
+        return JsonResponse({'success': True, 'message': 'Arrival recorded'})
+    elif action == 'depart':
+        stop.departure_time = timezone.now().time()
+        stop.is_completed = True
+        stop.save()
+        return JsonResponse({'success': True, 'message': 'Departure recorded'})
+    else:
+        return JsonResponse({'success': False, 'message': 'Invalid action'}, status=400)
+
+# ✅ ADDED: Driver logout
+@login_required
+def driver_logout(request):
+    """Driver logout"""
+    logout(request)
+    messages.success(request, 'Logged out successfully.')
+    return redirect('driver_login')
