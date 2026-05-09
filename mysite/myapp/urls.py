@@ -102,4 +102,21 @@ urlpatterns = [
     path('chat/send/<int:room_id>/', views.send_chat_message, name='send_chat_message'),
     path('chat/messages/<int:room_id>/', views.get_chat_messages, name='get_chat_messages'),
     path('chat/close/<int:room_id>/', views.close_chat, name='close_chat'),
+
+
+    # ==================== DRIVER MODULE URLs (NEW - For driver_dashboard.html) ====================
+    # ✅ ADDED: Driver authentication URLs
+    path('driver/login/', views.driver_login_page, name='driver_login'),
+    path('driver/login/submit/', views.driver_login, name='driver_login_submit'),
+    path('driver/logout/', views.driver_logout, name='driver_logout'),
+    
+    # ✅ ADDED: Driver dashboard and profile URLs
+    path('driver/dashboard/', views.driver_dashboard, name='driver_dashboard'),
+    path('driver/profile/', views.driver_profile, name='driver_profile'),
+    
+    # ✅ ADDED: Trip management URLs
+    path('driver/trip/<int:trip_id>/', views.trip_detail, name='trip_detail'),
+    path('driver/trip/<int:trip_id>/start/', views.start_trip, name='start_trip'),
+    path('driver/trip/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
+    path('driver/stop/<int:stop_id>/update/', views.update_stop_status, name='update_stop_status'),
 ]
