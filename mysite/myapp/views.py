@@ -998,7 +998,7 @@ def driver_dashboard(request):
 
 @login_required
 def driver_profile(request):
-    """Driver profile page"""
+    """Driver profile page - FIXED: Proper POST handling and validation"""
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1006,9 +1006,20 @@ def driver_profile(request):
     driver = request.user.driver_profile
     
     if request.method == 'POST':
-        driver.phone = request.POST.get('phone', driver.phone)
-        driver.address = request.POST.get('address', driver.address)
-        driver.emergency_contact = request.POST.get('emergency_contact', driver.emergency_contact)
+        # ✅ FIXED: Get and validate form data
+        phone = request.POST.get('phone', '').strip()
+        address = request.POST.get('address', '').strip()
+        emergency_contact = request.POST.get('emergency_contact', '').strip()
+        
+        # Basic validation
+        if not phone or not emergency_contact:
+            messages.error(request, 'Phone and Emergency Contact are required.')
+            return redirect('driver_profile')
+        
+        # Update driver fields
+        driver.phone = phone
+        driver.address = address
+        driver.emergency_contact = emergency_contact
         driver.save()
         
         messages.success(request, 'Profile updated successfully!')

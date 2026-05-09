@@ -339,11 +339,8 @@
     });
 
     // Show Django messages as toast
-    {% if messages %}
-        {% for message in messages %}
-            showToast('{{ message }}', {% if message.tags == 'error' %}true{% else %}false{% endif %});
-        {% endfor %}
-    {% endif %}
+    const djangoMessages = [];
+    djangoMessages.forEach(m => showToast(m.msg, m.isError));
 </script>
 </body>
 </html>
