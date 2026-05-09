@@ -306,12 +306,30 @@
         // Form will submit normally - NO e.preventDefault()
     });
 
-    // Show Django messages
-    {% if messages %}
-        {% for message in messages %}
-            showToast("{{ message }}", {% if message.tags == 'error' %}true{% else %}false{% endif %});
-        {% endfor %}
-    {% endif %}
+    // ✅ FIXED: Django messages display - using data attribute for VS Code compatibility
+    // CHANGE REASON: Move Django template tags outside JavaScript to avoid VS Code syntax errors
+    document.addEventListener('DOMContentLoaded', function() {
+        const messagesData = document.getElementById('djangoMessages');
+        if (messagesData) {
+            try {
+                const messages = JSON.parse(messagesData.textContent || '[]');
+                messages.forEach(function(msg) {
+                    showToast(msg.text, msg.is_error);
+                });
+            } catch (e) {
+                console.error('Error parsing messages:', e);
+            }
+        }
+    });
 </script>
+
+<!-- ✅ FIXED: Hidden div to pass Django messages to JavaScript safely -->
+<!-- CHANGE REASON: Store messages in data attribute to avoid template syntax in JavaScript -->
+<div id="djangoMessages" style="display:none;" data-messages='[
+    {% for message in messages %}
+        {"text": "{{ message|escapejs }}", "is_error": {% if "error" in message.tags %}true{% else %}false{% endif %}}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]'></div>
+
 </body>
 </html>
