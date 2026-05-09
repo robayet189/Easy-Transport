@@ -3,6 +3,10 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 class UserProfile(models.Model):
+    """
+    Extended user profile for institutional transport system
+    CHANGE REASON: Store additional user data beyond Django's default User model
+    """
     USER_TYPES = [
         ('student', 'Student'),
         ('faculty', 'Faculty'),
@@ -28,7 +32,12 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.user_type})"
 
+
 class Bus(models.Model):
+    """
+    Bus/fleet management model
+    CHANGE REASON: Track vehicle details, capacity, and features for booking system
+    """
     bus_number = models.CharField(max_length=20, unique=True)
     capacity = models.IntegerField(default=40)
     driver_name = models.CharField(max_length=100)
@@ -40,7 +49,12 @@ class Bus(models.Model):
     def __str__(self):
         return self.bus_number
 
+
 class Route(models.Model):
+    """
+    Transport route definition
+    CHANGE REASON: Define start/end points and distance for scheduling and fare calculation
+    """
     code = models.CharField(max_length=10, unique=True)
     start = models.CharField(max_length=100)
     end = models.CharField(max_length=100)
@@ -49,7 +63,12 @@ class Route(models.Model):
     def __str__(self):
         return f"{self.code}: {self.start} → {self.end}"
 
+
 class Schedule(models.Model):
+    """
+    Scheduled trip instances for booking
+    CHANGE REASON: Link routes, buses, and times for user booking interface
+    """
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='schedules')
     bus = models.ForeignKey(Bus, on_delete=models.CASCADE, related_name='schedules')
     departure_time = models.TimeField()
@@ -60,12 +79,17 @@ class Schedule(models.Model):
     available_seats = models.IntegerField(default=40)
 
     class Meta:
-        unique_together = ['route', 'travel_date', 'departure_time']
+        unique_together = ['route', 'travel_date', 'departure_time']  # CHANGE REASON: Prevent duplicate schedules
 
     def __str__(self):
         return f"{self.route.code} on {self.travel_date}"
 
+
 class Booking(models.Model):
+    """
+    User booking records with approval workflow
+    CHANGE REASON: Track bookings with admin approval, payment, and passenger details
+    """
     STATUS_CHOICES = [
         ('pending', 'Pending Approval'),
         ('approved', 'Approved'),
@@ -89,6 +113,7 @@ class Booking(models.Model):
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_bookings')
 
     def save(self, *args, **kwargs):
+        # CHANGE REASON: Auto-generate unique booking ID on creation
         if not self.booking_id:
             import random, string
             self.booking_id = 'BK-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -99,14 +124,17 @@ class Booking(models.Model):
 
 
 class BusLocation(models.Model):
-    """Track bus locations"""
+    """
+    Real-time bus GPS tracking
+    CHANGE REASON: Enable live bus location updates for user tracking feature
+    """
     bus = models.ForeignKey(Bus, on_delete=models.CASCADE, related_name='locations')
     latitude = models.FloatField()
     longitude = models.FloatField()
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-updated_at']
+        ordering = ['-updated_at']  # CHANGE REASON: Always show most recent location first
     
     def __str__(self):
         return f"{self.bus.bus_number} - {self.latitude}, {self.longitude}"
@@ -115,7 +143,7 @@ class BusLocation(models.Model):
 # ==================== PAYMENT MODELS ====================
 
 class PaymentMethod(models.Model):
-    """Available payment methods"""
+    """Available payment methods configuration"""
     name = models.CharField(max_length=50)
     code = models.CharField(max_length=20, unique=True)
     is_active = models.BooleanField(default=True)
@@ -126,7 +154,10 @@ class PaymentMethod(models.Model):
 
 
 class PaymentTransaction(models.Model):
-    """All payment transactions"""
+    """
+    All payment transactions across the system
+    CHANGE REASON: Centralized payment tracking for passes, bookings, and refunds
+    """
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('completed', 'Completed'),
@@ -154,16 +185,16 @@ class PaymentTransaction(models.Model):
     pass_valid_from = models.DateField(null=True, blank=True)
     pass_valid_until = models.DateField(null=True, blank=True)
     
-    payment_details = models.JSONField(default=dict, blank=True)
+    payment_details = models.JSONField(default=dict, blank=True)  # CHANGE REASON: Store provider-specific data
     remarks = models.TextField(blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
+        # CHANGE REASON: Auto-generate unique transaction ID
         if not self.transaction_id:
-            import random
-            import string
+            import random, string
             self.transaction_id = 'TXN' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
         super().save(*args, **kwargs)
     
@@ -175,7 +206,10 @@ class PaymentTransaction(models.Model):
 
 
 class UserPass(models.Model):
-    """User's active passes"""
+    """
+    User's active transport passes
+    CHANGE REASON: Manage pass validity, ride limits, and renewal tracking
+    """
     PASS_TYPES = [
         ('monthly', 'Monthly Pass'),
         ('semester', 'Semester Pass'),
@@ -204,9 +238,14 @@ class UserPass(models.Model):
 # ==================== CHAT SYSTEM MODELS ====================
 
 class ChatRoom(models.Model):
-    """Chat room for user-admin communication"""
+    """
+    Chat room for user-admin-driver communication
+    CHANGE REASON: Enable multi-role messaging for support and coordination
+    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_rooms', null=True, blank=True)
     admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='admin_chat_rooms')
+    # CHANGE REASON: Add driver field for driver-user direct chats
+    driver = models.ForeignKey('Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name='driver_chat_rooms')
     booking = models.ForeignKey('Booking', on_delete=models.SET_NULL, null=True, blank=True, related_name='chat_rooms')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -220,7 +259,10 @@ class ChatRoom(models.Model):
 
 
 class ChatMessage(models.Model):
-    """Individual chat messages"""
+    """
+    Individual chat messages with attachment support
+    CHANGE REASON: Store message history with read status for real-time chat
+    """
     MESSAGE_TYPES = [
         ('text', 'Text'),
         ('image', 'Image'),
@@ -242,10 +284,13 @@ class ChatMessage(models.Model):
         ordering = ['created_at']
 
 
-# ==================== DRIVER MODULE MODELS (NEW - For driver_dashboard.html) ====================
-# ✅ ADDED: Driver model for driver-specific data
+# ==================== DRIVER MODULE MODELS ====================
+
 class Driver(models.Model):
-    """Driver profile extending UserProfile"""
+    """
+    Driver profile extending UserProfile with driver-specific fields
+    CHANGE REASON: Separate driver data from general user profile for role-based features
+    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
     license_number = models.CharField(max_length=50, unique=True)
     license_expiry = models.DateField()
@@ -254,17 +299,33 @@ class Driver(models.Model):
     emergency_contact = models.CharField(max_length=15)
     is_approved = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    
+    # CHANGE REASON: Use assigned_bus/assigned_route for current assignment (not permanent)
     assigned_bus = models.ForeignKey(Bus, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_drivers')
     assigned_route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_drivers')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.license_number}"
+    
+    # CHANGE REASON: Add properties for backward compatibility with templates using driver.bus/route
+    @property
+    def bus(self):
+        """Fallback property for templates using driver.bus"""
+        return self.assigned_bus
+    
+    @property
+    def route(self):
+        """Fallback property for templates using driver.route"""
+        return self.assigned_route
 
 
-# ✅ ADDED: Trip model for driver trip management
 class Trip(models.Model):
-    """Trip assignment for drivers"""
+    """
+    Trip assignment for drivers with real-time tracking
+    CHANGE REASON: Manage driver trips with status, location, and stop tracking
+    """
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('ongoing', 'Ongoing'),
@@ -279,9 +340,12 @@ class Trip(models.Model):
     departure_time = models.TimeField()
     arrival_time = models.TimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # CHANGE REASON: Real-time GPS tracking fields
     current_lat = models.FloatField(null=True, blank=True)
     current_lng = models.FloatField(null=True, blank=True)
     last_location_update = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -289,27 +353,31 @@ class Trip(models.Model):
         return f"{self.route.code} - {self.travel_date} ({self.driver.user.get_full_name()})"
 
 
-# ✅ ADDED: TripStop model for route stops
 class TripStop(models.Model):
-    """Individual stops in a trip"""
+    """
+    Individual stops in a trip for progress tracking
+    CHANGE REASON: Track arrival/departure times at each stop for schedule adherence
+    """
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='stops')
     stop_name = models.CharField(max_length=200)
-    stop_order = models.IntegerField()
+    stop_order = models.IntegerField()  # CHANGE REASON: Define stop sequence
     scheduled_time = models.TimeField()
     arrival_time = models.TimeField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     
     class Meta:
-        ordering = ['stop_order']
+        ordering = ['stop_order']  # CHANGE REASON: Ensure stops display in correct order
     
     def __str__(self):
         return f"{self.trip.route.code} - {self.stop_name} (Order {self.stop_order})"
 
 
-# ✅ ADDED: VehicleIssue model for driver issue reporting
 class VehicleIssue(models.Model):
-    """Vehicle issue reporting by drivers"""
+    """
+    Vehicle issue reporting by drivers for maintenance tracking
+    CHANGE REASON: Enable drivers to report vehicle problems for admin action
+    """
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),

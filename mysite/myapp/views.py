@@ -21,12 +21,18 @@ from datetime import datetime, timedelta
 # ==================== HELPER FUNCTIONS ====================
 
 def is_ajax(request):
-    """Check if request is AJAX (supports both jQuery & Fetch API)"""
+    """
+    Check if request is AJAX (supports both jQuery & Fetch API)
+    CHANGE REASON: Ensure consistent AJAX detection across different frontend libraries
+    """
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
 
 def get_profile_context(user):
-    """Helper to get profile context data - Safe & Optimized"""
+    """
+    Helper to get profile context data - Safe & Optimized
+    CHANGE REASON: Centralize profile data retrieval to avoid code duplication
+    """
     profile, created = UserProfile.objects.get_or_create(user=user)
     
     is_active = getattr(profile, 'is_pass_active', False)
@@ -44,23 +50,31 @@ def get_profile_context(user):
 # ==================== AUTH & PAGES ====================
 
 def homepage(request):
+    """Render homepage - CHANGE REASON: Entry point for all users"""
     return render(request, 'app1/Homepage.html')
 
 def register_page(request):
+    """Render registration page - CHANGE REASON: Separate page for user registration"""
     return render(request, 'app1/register.html')
 
 def login_page(request):
+    """Render login page - CHANGE REASON: Separate page for user authentication"""
     return render(request, 'app1/login.html')
 
 def account_created_page(request):
+    """Render account created confirmation - CHANGE REASON: Show success message after registration"""
     return render(request, 'app1/account_created.html')
 
 @require_http_methods(["POST"])
 def register_user(request):
-    """User Registration with validation + redirect to account_created"""
+    """
+    User Registration with validation + redirect to account_created
+    CHANGE REASON: Handle user registration with proper validation and error handling
+    """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
     
+    # CHANGE: Strip whitespace from all input fields to prevent data issues
     full_name = request.POST.get('full_name', '').strip()
     email = request.POST.get('email', '').strip().lower()
     password = request.POST.get('password', '')
@@ -69,43 +83,49 @@ def register_user(request):
     user_type = request.POST.get('user_type', 'student').strip().lower()
     institution_id = request.POST.get('institution_id', '').strip()
     
+    # CHANGE: Validate all required fields are present
     if not all([full_name, email, password, phone, institution_type, user_type, institution_id]):
         return JsonResponse({'success': False, 'message': 'All fields are required'}, status=400)
     
+    # CHANGE: Check for duplicate email to prevent account conflicts
     if User.objects.filter(email=email).exists():
         return JsonResponse({'success': False, 'message': 'Email already registered'}, status=400)
     
+    # CHANGE: Enforce minimum password length for security
     if len(password) < 6:
         return JsonResponse({'success': False, 'message': 'Password must be at least 6 characters'}, status=400)
     
+    # CHANGE: Validate email format using regex
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
         return JsonResponse({'success': False, 'message': 'Invalid email format'}, status=400)
     
     try:
+        # CHANGE: Generate unique username from email with counter for duplicates
         username = email.split('@')[0]
         counter = 1
         while User.objects.filter(username=username).exists():
             username = f"{email.split('@')[0]}_{counter}"
             counter += 1
         
+        # CHANGE: Create user with proper name splitting for first/last name
         user = User.objects.create_user(
             username=username, email=email, password=password,
             first_name=full_name.split()[0] if ' ' in full_name else full_name,
             last_name=full_name.split()[-1] if ' ' in full_name and len(full_name.split()) > 1 else ''
         )
         
-        # Create UserProfile for ALL users
+        # CHANGE: Create UserProfile for ALL users to ensure consistent data structure
         UserProfile.objects.create(
             user=user, phone=phone, institution_type=institution_type,
             user_type=user_type, institution_id=institution_id
         )
         
-        # ✅ FIXED: ONLY create Driver record if user_type is 'driver'
+        # CHANGE: ONLY create Driver record if user_type is 'driver' - prevents unnecessary data
         if user_type == 'driver':
-            # Generate UNIQUE license_number to avoid UNIQUE constraint error
+            # CHANGE: Generate UNIQUE license_number to avoid UNIQUE constraint error
             unique_license = f"DL-{timezone.now().strftime('%Y%m%d')}-{random.randint(10000, 99999)}-{user.id}"
             
-            # Check if Driver already exists (safety check)
+            # CHANGE: Safety check to prevent duplicate Driver records
             if not Driver.objects.filter(user=user).exists():
                 Driver.objects.create(
                     user=user,
@@ -125,20 +145,26 @@ def register_user(request):
         })
         
     except Exception as e:
+        # CHANGE: Log error for debugging while returning user-friendly message
         print(f"Registration error: {str(e)}")
         return JsonResponse({'success': False, 'message': f'Registration failed: {str(e)}'}, status=500)
 
 @require_http_methods(["POST"])
 def login_user(request):
-    """Handle user login via AJAX - supports login with email OR username"""
+    """
+    Handle user login via AJAX - supports login with email OR username
+    CHANGE REASON: Flexible authentication with role-based redirection
+    """
     username_or_email = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     
+    # CHANGE: Validate required fields before processing
     if not username_or_email or not password:
         return JsonResponse({'success': False, 'message': 'Please enter username/email and password'}, status=400)
     
     user = None
     
+    # CHANGE: Support login with email by finding user object first
     if '@' in username_or_email:
         try:
             user_obj = User.objects.get(email__iexact=username_or_email)
@@ -151,29 +177,35 @@ def login_user(request):
     if user is not None:
         login(request, user)
         
-        # ✅ FIXED: Role-based redirection
+        # CHANGE: Role-based redirection with fallback handling
         redirect_url = '/dashboard/'
         
         try:
+            # CHANGE: First check UserProfile.user_type for reliable role detection
             if hasattr(user, 'profile'):
                 user_type = user.profile.user_type.lower()
                 
                 if user_type == 'driver':
+                    # CHANGE: Double-check Driver model instance exists and is active
                     if hasattr(user, 'driver_profile') and user.driver_profile.is_active:
                         redirect_url = '/driver/dashboard/'
                     else:
+                        # CHANGE: Fallback redirect if Driver instance missing but user_type is driver
                         redirect_url = '/driver/dashboard/'
                 elif user_type == 'admin':
                     redirect_url = '/admin_page/dashboard/'
                 else:
                     redirect_url = '/dashboard/'
+            # CHANGE: Second check for direct driver_profile relationship
             elif hasattr(user, 'driver_profile') and user.driver_profile.is_active:
                 redirect_url = '/driver/dashboard/'
             else:
                 redirect_url = '/dashboard/'
         except Exception:
+            # CHANGE: Fallback to default dashboard if any error occurs
             redirect_url = '/dashboard/'
         
+        # CHANGE: Personalize welcome message with user's full name
         full_name = user.get_full_name() or user.username
         msg = f'Welcome back Admin, {full_name}!' if 'admin' in redirect_url else f'Welcome back, {full_name}!'
         
@@ -182,11 +214,15 @@ def login_user(request):
     return JsonResponse({'success': False, 'message': 'Invalid username/email or password'}, status=401)
 
 def logout_user(request):
+    """
+    Handle user logout - CHANGE REASON: Clear session and redirect to homepage
+    """
     logout(request)
     messages.success(request, 'Logged out successfully')
     return redirect('homepage')
 
 # ==================== PASSWORD RESET & EMAIL VERIFICATION ====================
+# [Password reset functions remain unchanged - they are working correctly]
 
 def forgot_password(request):
     if request.method == 'POST':
@@ -297,6 +333,9 @@ def password_reset_request(request):
 
 @login_required
 def dashboard(request):
+    """
+    User dashboard - CHANGE REASON: Show personalized data based on user role
+    """
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     
@@ -328,6 +367,9 @@ def dashboard(request):
 
 @login_required
 def schedule(request):
+    """
+    View transport schedules - CHANGE REASON: Filter and display available routes
+    """
     try:
         today = timezone.now().date()
         routes = Schedule.objects.filter(is_active=True, travel_date__gte=today).select_related('route', 'bus').order_by('travel_date', 'departure_time')
@@ -343,7 +385,10 @@ def schedule(request):
 
 @login_required
 def schedule_details(request, schedule_id):
-    """Get schedule details for booking modal"""
+    """
+    Get schedule details for booking modal
+    CHANGE REASON: Provide JSON data for dynamic booking interface
+    """
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     return JsonResponse({
         'success': True,
@@ -361,6 +406,9 @@ def schedule_details(request, schedule_id):
 
 @login_required
 def profile(request):
+    """
+    User profile management - CHANGE REASON: Allow users to update personal information
+    """
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     
@@ -388,6 +436,9 @@ def profile(request):
 
 @login_required
 def edit_profile(request):
+    """
+    Edit user profile - CHANGE REASON: Separate endpoint for profile editing
+    """
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     
@@ -412,6 +463,9 @@ def edit_profile(request):
 
 @login_required
 def change_password(request):
+    """
+    Change user password - CHANGE REASON: Secure password update with validation
+    """
     if request.method == 'POST':
         user = request.user
         current_password = request.POST.get('current_password')
@@ -439,6 +493,9 @@ def change_password(request):
 
 @login_required
 def renew_pass(request):
+    """
+    Renew transport pass - CHANGE REASON: Handle pass renewal with expiry date
+    """
     if request.method == 'POST':
         user = request.user
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -461,11 +518,15 @@ def renew_pass(request):
 
 @login_required
 def book_ticket(request, schedule_id):
-    """Handle ticket booking via AJAX - supports both form & JSON"""
+    """
+    Handle ticket booking via AJAX - supports both form & JSON
+    CHANGE REASON: Flexible booking with real-time seat availability check
+    """
     if request.method == 'POST':
         try:
             schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
             
+            # CHANGE: Support both JSON and form data for flexibility
             if request.content_type == 'application/json':
                 data = json.loads(request.body)
                 number_of_seats = int(data.get('seats', 1))
@@ -476,11 +537,13 @@ def book_ticket(request, schedule_id):
                 passenger_name = request.POST.get('passenger_name', '')
                 passenger_phone = request.POST.get('passenger_phone', '')
             
+            # CHANGE: Check seat availability before booking
             if number_of_seats > schedule.available_seats:
                 return JsonResponse({'success': False, 'error': f'Sorry, only {schedule.available_seats} seats available'}, status=400)
             
             total_amount = schedule.fare * number_of_seats
             
+            # CHANGE: Create booking with all required fields
             booking = Booking.objects.create(
                 user=request.user, schedule=schedule, 
                 seat_number=f"A{number_of_seats}",
@@ -489,6 +552,7 @@ def book_ticket(request, schedule_id):
                 passenger_name=passenger_name or request.user.get_full_name(),
             )
             
+            # CHANGE: Update available seats after successful booking
             schedule.available_seats -= number_of_seats
             schedule.save()
             
@@ -511,7 +575,7 @@ def book_ticket(request, schedule_id):
 
 @login_required
 def my_bookings(request):
-    """View user's all bookings"""
+    """View user's all bookings - CHANGE REASON: Show booking history with stats"""
     bookings = Booking.objects.filter(user=request.user).select_related('schedule__route').order_by('-booking_date')
     context = {
         'bookings': bookings,
@@ -524,7 +588,7 @@ def my_bookings(request):
 
 @login_required
 def booking_detail(request, booking_id):
-    """View single booking details"""
+    """View single booking details - CHANGE REASON: Show detailed booking information"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     context = {'booking': booking}
     if is_ajax(request):
@@ -533,12 +597,15 @@ def booking_detail(request, booking_id):
 
 @login_required
 def cancel_booking(request, booking_id):
-    """Cancel a booking"""
+    """
+    Cancel a booking - CHANGE REASON: Handle cancellation with seat recovery
+    """
     if request.method == 'POST':
         booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
         if booking.status == 'cancelled':
             return JsonResponse({'success': False, 'error': 'Booking already cancelled'}, status=400)
         if booking.status == 'confirmed':
+            # CHANGE: Recover seat when booking is cancelled
             schedule = booking.schedule
             schedule.available_seats += 1
             schedule.save()
@@ -549,7 +616,7 @@ def cancel_booking(request, booking_id):
 
 @login_required
 def check_seat_availability(request, schedule_id):
-    """Check seat availability for a schedule"""
+    """Check seat availability for a schedule - CHANGE REASON: Real-time seat check for UI"""
     schedule = get_object_or_404(Schedule, id=schedule_id)
     return JsonResponse({
         'available_seats': schedule.available_seats,
@@ -561,7 +628,7 @@ def check_seat_availability(request, schedule_id):
 
 @login_required
 def select_seats(request, schedule_id):
-    """Seat selection page"""
+    """Seat selection page - CHANGE REASON: Visual seat selection interface"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     booked_seats = Booking.objects.filter(schedule=schedule, status='confirmed').values_list('seat_number', flat=True)
     booked_seat_list = [s for s in booked_seats if s]
@@ -572,7 +639,7 @@ def select_seats(request, schedule_id):
 
 @login_required
 def confirm_booking(request):
-    """Confirm booking - FIXED: Removed travel_date"""
+    """Confirm booking - FIXED: Removed travel_date - CHANGE REASON: Simplify booking flow"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -597,18 +664,19 @@ def confirm_booking(request):
 
 @login_required
 def booking_confirmation(request, booking_id):
-    """Booking confirmation page"""
+    """Booking confirmation page - CHANGE REASON: Show booking success details"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation.html', {'booking': booking})
 
 def bus_schedule(request):
+    """Bus schedule page - CHANGE REASON: Display all bus schedules"""
     return render(request, 'app1/bus_schedule.html')
 
 # ==================== 2-STEP BOOKING SYSTEM ====================
 
 @login_required
 def trip_summary(request, schedule_id):
-    """Step 1: Trip Summary Page"""
+    """Step 1: Trip Summary Page - CHANGE REASON: Show trip details before booking"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     context = {
         'schedule': schedule,
@@ -624,7 +692,7 @@ def trip_summary(request, schedule_id):
 
 @login_required
 def seat_selection(request, schedule_id):
-    """Step 2: Seat Selection Page with Visual Layout"""
+    """Step 2: Seat Selection Page with Visual Layout - CHANGE REASON: Better UX for seat picking"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     total_seats = schedule.bus.capacity
     rows = total_seats // 4
@@ -644,7 +712,7 @@ def seat_selection(request, schedule_id):
 
 @login_required
 def confirm_booking_seat(request):
-    """Step 3: Confirm Booking after seat selection - FIXED: Removed travel_date"""
+    """Step 3: Confirm Booking after seat selection - CHANGE REASON: Finalize booking with seat"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -669,14 +737,14 @@ def confirm_booking_seat(request):
 
 @login_required
 def booking_confirmation_seat(request, booking_id):
-    """Step 4: Final Booking Confirmation Page"""
+    """Step 4: Final Booking Confirmation Page - CHANGE REASON: Show final booking details"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
 
 
 @login_required
 def track_bus(request):
-    """Bus tracking page with mock data"""
+    """Bus tracking page with mock data - CHANGE REASON: Show bus location on map"""
     return render(request, 'app1/track_bus.html')
 
 
@@ -689,16 +757,20 @@ from .models import Bus, BusLocation
 
 @api_view(['POST'])
 def update_bus_location(request, bus_id):
-    """API for driver to update bus location"""
+    """
+    API for driver to update bus location
+    CHANGE REASON: Enable real-time GPS tracking for drivers
+    """
     try:
         bus = Bus.objects.get(id=bus_id)
         lat = request.data.get('lat') or request.data.get('latitude')
         lng = request.data.get('lng') or request.data.get('longitude')
         
+        # CHANGE: Validate required location data
         if lat is None or lng is None:
             return Response({"error": "Latitude and longitude required"}, status=400)
         
-        # Save to history
+        # CHANGE: Save location to history for tracking
         BusLocation.objects.create(
             bus=bus,
             latitude=lat,
@@ -713,7 +785,10 @@ def update_bus_location(request, bus_id):
 
 @api_view(['GET'])
 def get_bus_location(request, bus_id):
-    """API for frontend to get latest bus location"""
+    """
+    API for frontend to get latest bus location
+    CHANGE REASON: Provide real-time location data to users
+    """
     try:
         bus = Bus.objects.get(id=bus_id)
         latest_location = BusLocation.objects.filter(bus=bus).first()
@@ -733,7 +808,10 @@ def get_bus_location(request, bus_id):
 
 @api_view(['GET'])
 def get_all_buses_location(request):
-    """API to get all buses latest locations"""
+    """
+    API to get all buses latest locations
+    CHANGE REASON: Support admin dashboard with fleet overview
+    """
     buses = Bus.objects.all()
     data = []
     
@@ -752,7 +830,7 @@ def get_all_buses_location(request):
 
 @login_required
 def track_bus_api(request):
-    """Bus tracking page with Leaflet map and DRF API"""
+    """Bus tracking page with Leaflet map and DRF API - CHANGE REASON: Advanced tracking interface"""
     buses = Bus.objects.filter(is_active=True)
     return render(request, 'app1/track_bus_api.html', {'buses': buses})
 
@@ -763,7 +841,10 @@ from .models import ChatRoom, ChatMessage
 
 @login_required
 def chat_list(request):
-    """User's chat rooms list"""
+    """
+    User's chat rooms list
+    CHANGE REASON: Show chat history based on user role
+    """
     if request.user.profile.user_type == 'admin':
         chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user')
     else:
@@ -778,13 +859,18 @@ def chat_list(request):
 
 @login_required
 def chat_room(request, room_id):
-    """Specific chat room view"""
+    """
+    Specific chat room view
+    CHANGE REASON: Secure chat access with permission checks
+    """
     room = get_object_or_404(ChatRoom, id=room_id)
     
+    # CHANGE: Prevent unauthorized access to chat rooms
     if request.user.profile.user_type != 'admin' and room.user != request.user:
         messages.error(request, 'You do not have permission to view this chat.')
         return redirect('chat_list')
     
+    # CHANGE: Mark messages as read when viewed
     ChatMessage.objects.filter(room=room, is_read=False).exclude(sender=request.user).update(is_read=True)
     
     context = {
@@ -797,13 +883,17 @@ def chat_room(request, room_id):
 
 @login_required
 def start_chat(request, booking_id=None):
-    """Start a new chat (for users) or create chat room (for admin)"""
+    """
+    Start a new chat (for users) or create chat room (for admin)
+    CHANGE REASON: Initialize chat conversations properly
+    """
     if request.method == 'POST':
         user_id = request.POST.get('user_id')
         subject = request.POST.get('subject', '')
         
         user = get_object_or_404(User, id=user_id)
         
+        # CHANGE: Reuse existing chat room if available
         existing_room = ChatRoom.objects.filter(user=user, is_active=True).first()
         if existing_room:
             return redirect('chat_room', room_id=existing_room.id)
@@ -826,10 +916,14 @@ def start_chat(request, booking_id=None):
 
 @login_required
 def send_chat_message(request, room_id):
-    """Send a message via AJAX"""
+    """
+    Send a message via AJAX
+    CHANGE REASON: Real-time messaging with proper validation
+    """
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         
+        # CHANGE: Permission check for chat access
         if request.user.profile.user_type != 'admin' and room.user != request.user:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
         
@@ -862,7 +956,10 @@ def send_chat_message(request, room_id):
 
 @login_required
 def get_chat_messages(request, room_id):
-    """Get new messages via AJAX polling"""
+    """
+    Get new messages via AJAX polling
+    CHANGE REASON: Efficient message retrieval for real-time chat
+    """
     room = get_object_or_404(ChatRoom, id=room_id)
     last_id = request.GET.get('last_id', 0)
     
@@ -887,10 +984,14 @@ def get_chat_messages(request, room_id):
 
 @login_required
 def close_chat(request, room_id):
-    """Close/archive a chat room"""
+    """
+    Close/archive a chat room
+    CHANGE REASON: Proper chat lifecycle management
+    """
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         
+        # CHANGE: Only admin can close chats
         if request.user.profile.user_type != 'admin':
             return JsonResponse({'success': False, 'error': 'Permission denied'})
         
@@ -911,14 +1012,20 @@ def close_chat(request, room_id):
 # ==================== DRIVER MODULE VIEWS ====================
 
 def driver_login_page(request):
-    """Driver login page"""
+    """
+    Driver login page
+    CHANGE REASON: Separate login for drivers with proper redirection
+    """
     if request.user.is_authenticated and hasattr(request.user, 'driver_profile'):
         return redirect('driver_dashboard')
     return render(request, 'app1/driver/driver_login.html')
 
 @require_http_methods(["POST"])
 def driver_login(request):
-    """Driver login handler"""
+    """
+    Driver login handler
+    CHANGE REASON: Secure driver authentication with role validation
+    """
     username = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     
@@ -958,7 +1065,10 @@ def driver_login(request):
 
 @login_required
 def driver_dashboard(request):
-    """Driver dashboard - shows assigned trips and stats"""
+    """
+    Driver dashboard - shows assigned trips and stats
+    CHANGE REASON: Personalized dashboard with trip management
+    """
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -998,7 +1108,10 @@ def driver_dashboard(request):
 
 @login_required
 def driver_profile(request):
-    """✅ FIXED: Driver profile page - Edit Profile working properly"""
+    """
+    ✅ FIXED: Driver profile page - Edit Profile working properly
+    CHANGE REASON: Proper POST handling with validation and data saving
+    """
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1006,31 +1119,39 @@ def driver_profile(request):
     driver = request.user.driver_profile
     
     if request.method == 'POST':
-        # Get form data
+        # CHANGE: Get form data with .strip() to remove extra spaces
         phone = request.POST.get('phone', '').strip()
         address = request.POST.get('address', '').strip()
         emergency_contact = request.POST.get('emergency_contact', '').strip()
         
-        # Validation
+        # CHANGE: Add validation - phone and emergency contact are required
         if not phone or not emergency_contact:
             messages.error(request, 'Phone and Emergency Contact are required.')
             return redirect('driver_profile')
         
-        # Update and save
+        # CHANGE: Update driver fields with new data
         driver.phone = phone
         driver.address = address
         driver.emergency_contact = emergency_contact
+        
+        # CHANGE: Save the updated data to database
         driver.save()
         
+        # CHANGE: Show success message
         messages.success(request, 'Profile updated successfully!')
-        return redirect('driver_profile')  # Redirect to same page to show updated data
+        
+        # CHANGE: Redirect to same page to show updated data (prevents form resubmission)
+        return redirect('driver_profile')
     
     context = {'driver': driver}
     return render(request, 'app1/driver/driver_profile.html', context)
 
 @login_required
 def trip_detail(request, trip_id):
-    """View trip details with stops"""
+    """
+    View trip details with stops
+    CHANGE REASON: Show detailed trip information for drivers
+    """
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1047,7 +1168,10 @@ def trip_detail(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def start_trip(request, trip_id):
-    """Start a trip"""
+    """
+    Start a trip
+    CHANGE REASON: Update trip status with proper validation
+    """
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     
@@ -1069,7 +1193,10 @@ def start_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def complete_trip(request, trip_id):
-    """Complete a trip"""
+    """
+    Complete a trip
+    CHANGE REASON: Mark trip as completed with arrival time
+    """
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     
@@ -1092,12 +1219,16 @@ def complete_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def update_stop_status(request, stop_id):
-    """Update stop arrival/departure"""
+    """
+    Update stop arrival/departure
+    CHANGE REASON: Track trip progress at each stop
+    """
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     
     stop = get_object_or_404(TripStop, id=stop_id)
     
+    # CHANGE: Verify driver owns this trip
     if stop.trip.driver != request.user.driver_profile:
         return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
     
@@ -1117,8 +1248,11 @@ def update_stop_status(request, stop_id):
 
 @login_required
 def driver_logout(request):
-    """✅ FIXED: Driver logout - Redirects to homepage, NOT driver_login"""
+    """
+    ✅ FIXED: Driver logout - Redirects to homepage, NOT driver_login
+    CHANGE REASON: Proper session cleanup and redirect to prevent redirect loops
+    """
     logout(request)
-    request.session.flush()  # Clear all session data
+    request.session.flush()  # CHANGE: Clear all session data for security
     messages.success(request, 'Logged out successfully.')
-    return redirect('homepage')  # ✅ FIXED: Redirect to homepage
+    return redirect('homepage')  # CHANGE: Redirect to homepage instead of driver_login
