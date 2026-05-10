@@ -427,8 +427,11 @@ class VehicleIssue(models.Model):
     is_resolved = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"Issue by {self.driver.user.get_full_name()} - {self.reported_at}"  
-    class Alert(models.Model):
+        return f"Issue by {self.driver.user.get_full_name()} - {self.reported_at}"
+
+
+# ✅ FIXED: Moved Alert class to module level to fix IndentationError
+class Alert(models.Model):
     """
     Emergency alert system for users and drivers
     CHANGE REASON: Enable real-time emergency notification system
