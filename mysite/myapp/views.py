@@ -21,10 +21,12 @@ from datetime import datetime, timedelta
 # ==================== HELPER FUNCTIONS ====================
 
 def is_ajax(request):
+    """Check if request is AJAX - CHANGE REASON: Support both jQuery & Fetch API"""
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
 
 def get_profile_context(user):
+    """Helper to get profile context data - CHANGE REASON: Centralize profile data retrieval"""
     profile, created = UserProfile.objects.get_or_create(user=user)
     is_active = getattr(profile, 'is_pass_active', False)
     pass_date = getattr(profile, 'pass_valid_until', None)
@@ -810,24 +812,67 @@ def driver_dashboard(request):
 
 @login_required
 def driver_profile(request):
+    """
+    ✅ FIXED: Driver profile page - Edit ALL fields including name, email, phone, address
+    CHANGE REASON: Allow drivers to update personal info and see changes reflected everywhere
+    """
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
+    
     driver = request.user.driver_profile
+    user = request.user  # Get the User object linked to this driver
+    
     if request.method == 'POST':
+        # CHANGE: Get ALL form fields with .strip() to remove extra spaces
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        email = request.POST.get('email', '').strip().lower()
         phone = request.POST.get('phone', '').strip()
         address = request.POST.get('address', '').strip()
         emergency_contact = request.POST.get('emergency_contact', '').strip()
+        
+        # CHANGE: Validate required fields
         if not phone or not emergency_contact:
             messages.error(request, 'Phone and Emergency Contact are required.')
             return redirect('driver_profile')
+        
+        # CHANGE: Validate email format
+        if email and not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+            messages.error(request, 'Invalid email format.')
+            return redirect('driver_profile')
+        
+        # CHANGE: Check if email is already taken by another user
+        if email and email != user.email and User.objects.filter(email=email).exclude(pk=user.pk).exists():
+            messages.error(request, 'This email is already registered to another account.')
+            return redirect('driver_profile')
+        
+        # CHANGE: Update User model fields (first_name, last_name, email)
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        if email:
+            user.email = email
+        user.save()  # Save User changes
+        
+        # CHANGE: Update Driver model fields (phone, address, emergency_contact)
         driver.phone = phone
         driver.address = address
         driver.emergency_contact = emergency_contact
-        driver.save()
+        driver.save()  # Save Driver changes
+        
+        # CHANGE: Show success message
         messages.success(request, 'Profile updated successfully!')
+        
+        # CHANGE: Redirect to same page to show updated data (prevents form resubmission)
         return redirect('driver_profile')
-    context = {'driver': driver}
+    
+    # For GET request, pass both user and driver to template
+    context = {
+        'driver': driver,
+        'user': user,  # CHANGE: Pass user object for name/email fields
+    }
     return render(request, 'app1/driver/driver_profile.html', context)
 
 @login_required
