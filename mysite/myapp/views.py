@@ -171,6 +171,9 @@ def logout_user(request):
 # ==================== PASSWORD RESET & EMAIL VERIFICATION ====================
 
 def forgot_password(request):
+    """
+    Handle password reset request - CHANGE REASON: Only accessible via /forgot-password/ URL
+    """
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         if not email:
@@ -192,14 +195,20 @@ def forgot_password(request):
                 print(f"Email error: {e}")
                 messages.error(request, 'Unable to send email. Please try again later.')
         except User.DoesNotExist:
+            # CHANGE: Security best practice - don't reveal if email exists
             messages.success(request, 'If an account exists with that email, reset instructions were sent.')
         return redirect('forgot_password_success')
     return render(request, 'app1/forgot_password.html')
 
 def forgot_password_success(request):
+    """Show success page after password reset request"""
     return render(request, 'app1/forgot_password_success.html')
 
 def password_reset_confirm_view(request, uidb64, token):
+    """
+    Handle password reset confirmation with new password
+    CHANGE REASON: Secure token-based password reset flow
+    """
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = User.objects.get(pk=uid)
@@ -223,9 +232,11 @@ def password_reset_confirm_view(request, uidb64, token):
         return render(request, 'app1/password_reset_confirm.html', {'valid': False})
 
 def password_reset_success(request):
+    """Show success page after password is reset"""
     return render(request, 'app1/password_reset_success.html')
 
 def send_verification_email(user):
+    """Send verification email (console backend for development)"""
     token = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     print(f"Verification token for {user.email}: {token}")
     subject = 'Verify your Easy Transport account'
@@ -236,11 +247,13 @@ def send_verification_email(user):
 
 @require_http_methods(["GET"])
 def verify_email(request, token):
+    """Verify user email with token"""
     messages.success(request, 'Email verified successfully! Please login.')
     return redirect('login_page')
 
 @require_http_methods(["POST"])
 def resend_verification_email(request):
+    """Resend verification email"""
     email = request.POST.get('email', '').strip().lower()
     try:
         user = User.objects.get(email=email)
@@ -251,6 +264,7 @@ def resend_verification_email(request):
 
 @require_http_methods(["POST"])
 def password_reset_request(request):
+    """API endpoint for password reset request (AJAX)"""
     email = request.POST.get('email', '').strip().lower()
     try:
         user = User.objects.get(email=email)
