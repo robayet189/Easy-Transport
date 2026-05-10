@@ -4,12 +4,15 @@ from django.http import JsonResponse
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import UserProfile, Route, Bus, Schedule, Booking
+from .models import UserProfile, Route, Bus, Schedule, Booking, Driver, Trip
 from django.contrib.auth.models import User
 import json
 
 def is_admin(user):
-    """Check if user is admin - CHANGE REASON: Reusable admin check decorator"""
+    """
+    Check if user is admin - CHANGE REASON: Reusable admin check decorator
+    Returns True if user has admin privileges via profile or superuser status
+    """
     if not user.is_authenticated: return False
     try:
         if hasattr(user, 'profile'): return user.profile.user_type == 'admin'
@@ -19,6 +22,7 @@ def is_admin(user):
 @login_required
 @user_passes_test(is_admin)
 def admin_dashboard(request):
+    """Render admin dashboard with key statistics and recent bookings"""
     today = timezone.now().date()
     
     total_users = User.objects.count()
@@ -49,6 +53,7 @@ def admin_dashboard(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_users(request):
+    """Render user management page with search and filter capabilities"""
     search = request.GET.get('search', '')
     role = request.GET.get('role', '')
     status = request.GET.get('status', '')
@@ -82,6 +87,7 @@ def admin_users(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_delete_user(request, user_id):
+    """API endpoint to delete a user account"""
     if request.method == 'POST':
         user = get_object_or_404(User, id=user_id)
         if user == request.user:
@@ -93,6 +99,7 @@ def admin_delete_user(request, user_id):
 @login_required
 @user_passes_test(is_admin)
 def admin_bookings(request):
+    """Render bookings management page with filtering options"""
     status_filter = request.GET.get('status', '')
     search = request.GET.get('search', '')
     date_from = request.GET.get('date_from', '')
@@ -136,6 +143,7 @@ def admin_bookings(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_approve_booking(request, booking_id):
+    """API endpoint to approve a pending booking"""
     if request.method == 'POST':
         booking = get_object_or_404(Booking, booking_id=booking_id)
         if booking.status != 'pending':
@@ -155,6 +163,7 @@ def admin_approve_booking(request, booking_id):
 @login_required
 @user_passes_test(is_admin)
 def admin_reject_booking(request, booking_id):
+    """API endpoint to reject a pending booking and restore seat availability"""
     if request.method == 'POST':
         booking = get_object_or_404(Booking, booking_id=booking_id)
         if booking.status != 'pending':
@@ -167,6 +176,7 @@ def admin_reject_booking(request, booking_id):
         booking.approved_by = request.user
         booking.save()
         
+        # Restore seat availability in schedule
         booking.schedule.available_seats += 1
         booking.schedule.save()
         return JsonResponse({'success': True, 'message': f'Booking {booking.booking_id} rejected'})
@@ -193,6 +203,7 @@ def admin_update_booking_status(request, booking_id):
 @login_required
 @user_passes_test(is_admin)
 def admin_fleet(request):
+    """Render fleet management page with bus list"""
     buses = Bus.objects.all().order_by('bus_number')
     context = {
         'active': 'fleet', 
@@ -207,6 +218,7 @@ def admin_fleet(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_routes(request):
+    """Render routes management page with schedule count annotation"""
     routes = Route.objects.all().annotate(schedule_count=Count('schedules'))
     active_routes = routes.filter(schedules__is_active=True).distinct().count()
     total_buses = Bus.objects.count()
@@ -249,6 +261,7 @@ def admin_schedule(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_revenue(request):
+    """Render revenue analytics page with time-based aggregations"""
     today = timezone.now().date()
     this_week = today - timedelta(days=today.weekday())
     this_month = today.replace(day=1)
@@ -273,11 +286,13 @@ def admin_revenue(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_alerts(request):
+    """Render alerts management page"""
     return render(request, 'app1/admin/admin_alerts.html', {'active': 'alerts'})
 
 @login_required
 @user_passes_test(is_admin)
 def admin_notifications(request):
+    """Render notifications management page"""
     return render(request, 'app1/admin/admin_notifications.html', {'active': 'notifications'})
 
 # ==================== API ENDPOINTS (FLEET MANAGEMENT) ====================
@@ -495,7 +510,10 @@ def admin_get_schedule(request, schedule_id):
 @login_required
 @user_passes_test(is_admin)
 def admin_add_schedule(request):
-    """Add new schedule via API - CHANGE REASON: Create new transport schedule"""
+    """
+    Add new schedule via API - CHANGE REASON: Create new transport schedule
+    ✅ FIXED: Also create Trip for driver dashboard visibility when driver is assigned
+    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -512,6 +530,7 @@ def admin_add_schedule(request):
             # CHANGE: Auto-fill available seats from bus capacity if not provided
             available_seats = data.get('available_seats') or bus.capacity
             
+            # Create Schedule
             schedule = Schedule.objects.create(
                 route=route,
                 bus=bus,
@@ -522,6 +541,26 @@ def admin_add_schedule(request):
                 available_seats=available_seats,
                 is_active=data.get('is_active', True)
             )
+            
+            # ✅ FIXED: Create Trip for driver dashboard if driver is assigned
+            # CHANGE REASON: Driver dashboard queries Trip model, not Schedule - so Trip must exist for driver to see assignment
+            driver_id = data.get('driver')
+            if driver_id:
+                try:
+                    driver = Driver.objects.get(id=driver_id)
+                    Trip.objects.create(
+                        driver=driver,
+                        route=route,
+                        bus=bus,
+                        travel_date=travel_date,
+                        departure_time=departure_time,
+                        arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None,
+                        status='pending'
+                    )
+                except Driver.DoesNotExist:
+                    # Driver not found, but schedule was created successfully
+                    pass
+            
             return JsonResponse({'success': True, 'message': 'Schedule added successfully', 'schedule_id': schedule.id})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
@@ -599,6 +638,9 @@ def resolve_alert_api(request, alert_id):
     """Resolve alert via API"""
     if request.method == 'POST':
         try:
+            alert = get_object_or_404(Alert, id=alert_id)
+            alert.is_resolved = True
+            alert.save()
             return JsonResponse({'success': True, 'message': 'Alert resolved successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
