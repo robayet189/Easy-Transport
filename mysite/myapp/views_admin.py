@@ -221,6 +221,31 @@ def admin_routes(request):
     }
     return render(request, 'app1/admin/admin_routes.html', context)
 
+# ✅ NEW: Admin Schedule Management View
+@login_required
+@user_passes_test(is_admin)
+def admin_schedule(request):
+    """Admin schedule management page - CHANGE REASON: Allow admin to manage transport schedules"""
+    schedules = Schedule.objects.select_related('route', 'bus').all().order_by('travel_date', 'departure_time')
+    routes = Route.objects.all()
+    
+    today = timezone.now().date()
+    total_schedules = schedules.count()
+    active_today = schedules.filter(travel_date=today, is_active=True).count()
+    pending_schedules = schedules.filter(is_active=True, travel_date__gte=today).count()
+    completed_schedules = schedules.filter(travel_date__lt=today).count()
+    
+    context = {
+        'active': 'schedule',
+        'schedules': schedules,
+        'routes': routes,
+        'total_schedules': total_schedules,
+        'active_today': active_today,
+        'pending_schedules': pending_schedules,
+        'completed_schedules': completed_schedules,
+    }
+    return render(request, 'app1/admin/admin_schedule.html', context)
+
 @login_required
 @user_passes_test(is_admin)
 def admin_revenue(request):
@@ -281,11 +306,10 @@ def admin_get_bus(request, bus_id):
             return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
-# ✅ NEW: Added to populate Bus dropdown in Schedule Modal
 @login_required
 @user_passes_test(is_admin)
 def admin_get_buses(request):
-    """Get all active buses for schedule creation"""
+    """Get all active buses for schedule creation - CHANGE REASON: Populate bus dropdown in schedule modal"""
     if request.method == 'GET':
         try:
             buses = Bus.objects.filter(is_active=True).values('id', 'bus_number', 'capacity')
@@ -439,10 +463,37 @@ def admin_delete_route(request, route_id):
         return JsonResponse({'success': True, 'message': 'Route deleted successfully'})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
+# ==================== API ENDPOINTS (SCHEDULE MANAGEMENT) - NEW ====================
+
+@login_required
+@user_passes_test(is_admin)
+def admin_get_schedule(request, schedule_id):
+    """Get single schedule details via API - CHANGE REASON: Populate edit form"""
+    if request.method == 'GET':
+        try:
+            schedule = get_object_or_404(Schedule, id=schedule_id)
+            return JsonResponse({
+                'success': True,
+                'schedule': {
+                    'id': schedule.id,
+                    'route': schedule.route.id,
+                    'bus': schedule.bus.id,
+                    'travel_date': schedule.travel_date.strftime('%Y-%m-%d'),
+                    'departure_time': schedule.departure_time.strftime('%H:%M'),
+                    'arrival_time': schedule.arrival_time.strftime('%H:%M') if schedule.arrival_time else '',
+                    'fare': float(schedule.fare),
+                    'available_seats': schedule.available_seats,
+                    'is_active': schedule.is_active,
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
 @login_required
 @user_passes_test(is_admin)
 def admin_add_schedule(request):
-    """Add new schedule via API"""
+    """Add new schedule via API - CHANGE REASON: Create new transport schedule"""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -452,19 +503,47 @@ def admin_add_schedule(request):
             travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
             departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
             
+            # CHANGE: Check for duplicate schedule
             if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
                 return JsonResponse({'success': False, 'message': 'Schedule already exists for this route at this time'})
+            
+            # CHANGE: Auto-fill available seats from bus capacity if not provided
+            available_seats = data.get('available_seats') or bus.capacity
             
             schedule = Schedule.objects.create(
                 route=route,
                 bus=bus,
                 travel_date=travel_date,
                 departure_time=departure_time,
+                arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None,
                 fare=float(data.get('fare', 40)),
-                available_seats=data.get('available_seats') or bus.capacity,
+                available_seats=available_seats,
                 is_active=data.get('is_active', True)
             )
             return JsonResponse({'success': True, 'message': 'Schedule added successfully', 'schedule_id': schedule.id})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
+@login_required
+@user_passes_test(is_admin)
+def admin_update_schedule(request, schedule_id):
+    """Update schedule via API - CHANGE REASON: Edit existing schedule"""
+    if request.method in ['POST', 'PUT']:
+        try:
+            schedule = get_object_or_404(Schedule, id=schedule_id)
+            data = json.loads(request.body)
+            
+            schedule.route = get_object_or_404(Route, id=data.get('route', schedule.route.id))
+            schedule.bus = get_object_or_404(Bus, id=data.get('bus', schedule.bus.id))
+            schedule.travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
+            schedule.departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
+            schedule.arrival_time = datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None
+            schedule.fare = float(data.get('fare', schedule.fare))
+            schedule.available_seats = data.get('available_seats', schedule.available_seats)
+            schedule.is_active = data.get('is_active', schedule.is_active)
+            schedule.save()
+            return JsonResponse({'success': True, 'message': 'Schedule updated successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
@@ -487,6 +566,9 @@ def admin_delete_schedule(request, schedule_id):
     """Delete schedule via API"""
     if request.method in ['POST', 'DELETE']:
         schedule = get_object_or_404(Schedule, id=schedule_id)
+        # CHANGE: Check if schedule has bookings before deleting
+        if schedule.bookings.exists():
+            return JsonResponse({'success': False, 'message': 'Cannot delete schedule with existing bookings'})
         schedule.delete()
         return JsonResponse({'success': True, 'message': 'Schedule deleted successfully'})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
