@@ -114,13 +114,14 @@
                 </select>
             </div>
             
-            <!-- Bus Selection - ✅ FIXED: Populated via API -->
+            <!-- Bus Selection - ✅ FIXED: Populated via API with active/inactive indicator -->
             <div class="form-group">
                 <label>Bus *</label>
                 <select id="bus" name="bus" required>
-                    <option value="">Loading buses...</option>
+                    <option value="">Select a Bus</option>
+                    <!-- Buses will be populated via JavaScript API call -->
                 </select>
-                <small style="color:var(--text-muted);">Only active buses are shown</small>
+                <small style="color:var(--text-muted);">All buses shown (active/inactive)</small>
             </div>
             
             <!-- Date & Time -->
@@ -216,7 +217,7 @@
 </style>
 
 <script>
-// ✅ FIXED: Load active buses into dropdown when modal opens
+// ✅ FIXED: Load ALL buses into dropdown with active/inactive indicator
 function loadBusesDropdown() {
     const busSelect = document.getElementById('bus');
     busSelect.innerHTML = '<option value="">Loading buses...</option>';
@@ -231,7 +232,14 @@ function loadBusesDropdown() {
             data.buses.forEach(bus => {
                 const option = document.createElement('option');
                 option.value = bus.id;
-                option.textContent = `${bus.bus_number} (${bus.capacity} seats)`;
+                // ✅ FIXED: Show active/inactive status in dropdown text
+                const statusText = bus.is_active ? '' : ' (Inactive)';
+                option.textContent = `${bus.bus_number} (${bus.capacity} seats)${statusText}`;
+                // ✅ FIXED: Disable inactive buses by default (admin can enable if needed via backend)
+                if(!bus.is_active) {
+                    option.disabled = true;
+                    option.style.color = 'var(--text-muted)';
+                }
                 busSelect.appendChild(option);
             });
         } else {
