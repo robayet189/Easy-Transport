@@ -309,10 +309,12 @@ def admin_get_bus(request, bus_id):
 @login_required
 @user_passes_test(is_admin)
 def admin_get_buses(request):
-    """Get all active buses for schedule creation - CHANGE REASON: Populate bus dropdown in schedule modal"""
+    """Get all buses for schedule creation - CHANGE REASON: Populate bus dropdown in schedule modal"""
     if request.method == 'GET':
         try:
-            buses = Bus.objects.filter(is_active=True).values('id', 'bus_number', 'capacity')
+            # ✅ FIXED: Return ALL buses (active + inactive) so admin can see and select any bus
+            # CHANGE REASON: Admin should be able to assign any bus to a schedule, even inactive ones
+            buses = Bus.objects.all().values('id', 'bus_number', 'capacity', 'is_active')
             return JsonResponse({
                 'success': True,
                 'buses': list(buses)
