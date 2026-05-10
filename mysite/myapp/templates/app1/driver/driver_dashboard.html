@@ -7,7 +7,6 @@
     <title>Driver Dashboard — Easy Transport</title>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* CHANGE REASON: CSS variables for consistent theming across dark/light modes */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         :root, [data-theme="dark"] {
             --bg: #0b0b14; --card: #13131f; --card2: #16162a;
@@ -37,7 +36,6 @@
             overflow-x: hidden; transition: background 0.3s ease, color 0.2s ease;
             position: relative;
         }
-        /* CHANGE REASON: Animated background gradients for visual appeal */
         body::before {
             content: ''; position: fixed; inset: 0;
             background: radial-gradient(ellipse 800px 600px at 20% 20%, rgba(255,71,87,0.08) 0%, transparent 60%),
@@ -56,7 +54,6 @@
             background-image: linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
                               linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
         }
-        /* CHANGE REASON: Fixed navbar with backdrop blur for modern UI */
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             display: flex; align-items: center; justify-content: space-between;
@@ -100,7 +97,6 @@
         }
         .theme-toggle:hover { transform: scale(1.05); border-color: var(--red); box-shadow: 0 0 12px var(--glow); }
         .layout { display: flex; margin-top: var(--nav-h); min-height: calc(100vh - var(--nav-h)); }
-        /* CHANGE REASON: Fixed sidebar with smooth transitions */
         .sidebar {
             position: fixed; top: var(--nav-h); left: 0; bottom: 0; width: var(--sidebar-w);
             background: var(--card); border-right: 1px solid var(--border);
@@ -147,7 +143,6 @@
             margin-left: var(--sidebar-w); flex: 1; padding: 28px;
             min-height: calc(100vh - var(--nav-h)); transition: margin-left 0.3s;
         }
-        /* CHANGE REASON: Section-based content loading with fade animation */
         .section { display: none; animation: fadeUp 0.4s ease forwards; }
         .section.active { display: block; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -437,7 +432,6 @@
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav>
     <a href="{% url 'homepage' %}" class="logo">
         <div class="logo-icon-custom">
@@ -450,7 +444,6 @@
             <div class="status-dot"></div>
             <span id="dutyStatus">On Duty</span>
         </div>
-        <!-- ✅ FIXED: Use request.user for correct name display -->
         <div class="nav-avatar" onclick="navigate('profile')" title="Profile">
             {{ request.user.first_name|default:"D"|first|upper }}
         </div>
@@ -460,23 +453,17 @@
     </div>
 </nav>
 
-<!-- MOBILE MENU TOGGLE -->
 <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">☰</button>
 
-<!-- LAYOUT -->
 <div class="layout">
-
-    <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
         <div style="padding: 0 12px; margin-bottom: 16px;">
             <div class="sidebar-driver-card">
-                <!-- ✅ FIXED: Use request.user for correct name -->
                 <div class="driver-name">{{ request.user.get_full_name|default:request.user.username }}</div>
                 <div class="driver-id">Driver ID: {{ driver.license_number|default:"DRV-XXXX" }}</div>
                 <div class="driver-meta">
-                    <!-- CHANGE REASON: Use assigned_bus/assigned_route from Driver model -->
-                    <span class="driver-tag">Bus {{ driver.assigned_bus.bus_number|default:driver.bus.bus_number|default:"B-XX" }}</span>
-                    <span class="driver-tag">Route {{ driver.assigned_route.code|default:driver.route.code|default:"XX" }}</span>
+                    <span class="driver-tag">Bus {{ driver.bus.bus_number|default:"B-XX" }}</span>
+                    <span class="driver-tag">Route {{ driver.route.code|default:"XX" }}</span>
                 </div>
             </div>
         </div>
@@ -533,7 +520,6 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 Profile
             </button>
-            <!-- ✅ FIXED: Use Django URL tag with proper quote escaping for VS Code compatibility -->
             <button class="nav-item" onclick="window.location.href=`{% url 'driver_logout' %}`">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                 Logout
@@ -541,16 +527,12 @@
         </div>
     </aside>
 
-    <!-- MAIN CONTENT -->
     <main class="main">
-
-        <!-- ── HOME / DASHBOARD ── -->
         <section id="sec-home" class="section active">
             <div class="page-header">
                 <div>
-                    <!-- ✅ FIXED: Use request.user for correct name -->
                     <div class="page-title">Good Morning, {{ request.user.first_name|default:"Driver" }} 👋</div>
-                    <div class="page-subtitle" id="currentDate">Saturday, May 9 · Route {{ driver.assigned_route.code|default:driver.route.code|default:"XX" }} · Departure in <span id="departureCountdown">--</span></div>
+                    <div class="page-subtitle" id="currentDate">Saturday, May 9 · Route {{ driver.route.code|default:"XX" }} · Departure in <span id="departureCountdown">--</span></div>
                 </div>
                 <button class="btn btn-primary" onclick="navigate('trip')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="10 8 16 12 10 16 10 8"/></svg>
@@ -558,7 +540,6 @@
                 </button>
             </div>
 
-            <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card green">
                     <div class="stat-icon green">
@@ -566,7 +547,7 @@
                     </div>
                     <div class="stat-label">Passengers Today</div>
                     <div class="stat-value" id="passengerStat">0</div>
-                    <div class="stat-sub">Capacity: {{ driver.assigned_bus.capacity|default:driver.bus.capacity|default:"40" }} seats</div>
+                    <div class="stat-sub">Capacity: {{ driver.bus.capacity|default:"40" }} seats</div>
                 </div>
                 <div class="stat-card orange">
                     <div class="stat-icon orange">
@@ -602,7 +583,6 @@
                 </div>
             </div>
 
-            <!-- Active Trip + Passenger Preview -->
             <div class="two-col">
                 <div>
                     <div class="trip-status-card">
@@ -613,8 +593,7 @@
                         <div class="route-line">
                             <div class="route-stop">
                                 <div class="route-stop-label">FROM</div>
-                                <!-- CHANGE REASON: Fallback to driver.route if assigned_route is null -->
-                                <div class="route-stop-name">{{ driver.assigned_route.start|default:driver.route.start|default:"UAP Campus" }}</div>
+                                <div class="route-stop-name">{{ driver.route.start|default:"UAP Campus" }}</div>
                             </div>
                             <div class="route-connector">
                                 <div class="route-connector-line">
@@ -623,13 +602,13 @@
                             </div>
                             <div class="route-stop" style="text-align: right;">
                                 <div class="route-stop-label">TO</div>
-                                <div class="route-stop-name">{{ driver.assigned_route.end|default:driver.route.end|default:"Uttara" }}</div>
+                                <div class="route-stop-name">{{ driver.route.end|default:"Uttara" }}</div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 10px; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 18px; flex-wrap: wrap;">
                             <span>🕐 Depart: {{ driver.departure_time|default:"8:00 AM" }}</span>
-                            <span>📍 Distance: {{ driver.assigned_route.distance_km|default:driver.route.distance_km|default:"18.4" }} km</span>
-                            <span>👥 <span id="seatCount">0</span> / {{ driver.assigned_bus.capacity|default:driver.bus.capacity|default:"40" }} seats</span>
+                            <span>📍 Distance: {{ driver.route.distance_km|default:"18.4" }} km</span>
+                            <span>👥 <span id="seatCount">0</span> / {{ driver.bus.capacity|default:"40" }} seats</span>
                         </div>
                         <div class="trip-actions">
                             <button class="btn btn-green" style="flex: 1;" onclick="startTrip()">▶ Start Trip</button>
@@ -637,7 +616,6 @@
                         </div>
                     </div>
 
-                    <!-- Today's Schedule Mini -->
                     <div class="card">
                         <div class="card-title"><span class="dot"></span>Today's Trips</div>
                         <div class="schedule-item">
@@ -647,7 +625,7 @@
                                 <div class="schedule-line"></div>
                             </div>
                             <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.assigned_route.start|default:driver.route.start|default:"Uttara" }} → {{ driver.assigned_route.end|default:driver.route.end|default:"UAP Campus" }}</div>
+                                <div class="schedule-route">{{ driver.route.start|default:"Uttara" }} → {{ driver.route.end|default:"UAP Campus" }}</div>
                                 <div class="schedule-detail"><span class="badge badge-green">Completed</span> · 32 passengers</div>
                             </div>
                         </div>
@@ -658,7 +636,7 @@
                                 <div class="schedule-line"></div>
                             </div>
                             <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.assigned_route.start|default:driver.route.start|default:"UAP Campus" }} → {{ driver.assigned_route.end|default:driver.route.end|default:"Uttara" }}</div>
+                                <div class="schedule-route">{{ driver.route.start|default:"UAP Campus" }} → {{ driver.route.end|default:"Uttara" }}</div>
                                 <div class="schedule-detail"><span class="badge badge-gold">Upcoming</span> · <span id="upcomingPassengers">0</span> booked</div>
                             </div>
                         </div>
@@ -668,7 +646,7 @@
                                 <div class="schedule-dot upcoming"></div>
                             </div>
                             <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.assigned_route.end|default:driver.route.end|default:"Uttara" }} → {{ driver.assigned_route.start|default:driver.route.start|default:"UAP Campus" }}</div>
+                                <div class="schedule-route">{{ driver.route.end|default:"Uttara" }} → {{ driver.route.start|default:"UAP Campus" }}</div>
                                 <div class="schedule-detail"><span class="badge badge-muted">Scheduled</span> · 18 booked</div>
                             </div>
                         </div>
@@ -676,7 +654,6 @@
                 </div>
 
                 <div>
-                    <!-- Quick Passenger Preview -->
                     <div class="card">
                         <div class="card-title"><span class="dot"></span>Passengers (8:00 AM Trip)</div>
                         <div id="passengerPreview">
@@ -689,7 +666,6 @@
                         </div>
                     </div>
 
-                    <!-- Route Alerts -->
                     <div class="card">
                         <div class="card-title"><span class="dot"></span>Route Alerts</div>
                         <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border);">
@@ -702,7 +678,7 @@
                         <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 0;">
                             <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; margin-top: 6px;"></div>
                             <div>
-                                <div style="font-size: 13px; font-weight: 500; color: var(--text);">Route {{ driver.assigned_route.code|default:driver.route.code|default:"03" }} is clear</div>
+                                <div style="font-size: 13px; font-weight: 500; color: var(--text);">Route {{ driver.route.code|default:"03" }} is clear</div>
                                 <div style="font-size: 11px; color: var(--muted);">Updated 5 mins ago by admin</div>
                             </div>
                         </div>
@@ -711,26 +687,23 @@
             </div>
         </section>
 
-        <!-- ── PROFILE SECTION ── -->
         <section id="sec-profile" class="section">
             <div class="page-header">
                 <div>
                     <div class="page-title">My Profile</div>
                     <div class="page-subtitle">Driver account information</div>
                 </div>
-                <!-- ✅ FIXED: Use Django URL tag with proper quote escaping for VS Code compatibility -->
                 <button class="btn btn-outline" onclick="window.location.href=`{% url 'driver_profile' %}`">Edit Profile</button>
             </div>
             <div class="card">
                 <div class="profile-header">
                     <div class="profile-avatar-lg">{{ request.user.first_name|default:"D"|first|upper }}</div>
                     <div class="profile-info">
-                        <!-- ✅ FIXED: Use request.user for correct name -->
                         <div class="name">{{ request.user.get_full_name|default:request.user.username }}</div>
                         <div class="role">Bus Driver · Easy Transport {{ driver.institution_type|default:"UAP" }}</div>
                         <div class="tags">
-                            <span class="profile-tag">Route {{ driver.assigned_route.code|default:driver.route.code|default:"03" }}</span>
-                            <span class="profile-tag">Bus {{ driver.assigned_bus.bus_number|default:driver.bus.bus_number|default:"B-12" }}</span>
+                            <span class="profile-tag">Route {{ driver.route.code|default:"03" }}</span>
+                            <span class="profile-tag">Bus {{ driver.bus.bus_number|default:"B-12" }}</span>
                             <span class="profile-tag">On Duty</span>
                         </div>
                     </div>
@@ -740,27 +713,20 @@
                     <div class="field-group"><label>Phone</label><div class="field-value">{{ driver.phone|default:"+880 1712 345678" }}</div></div>
                     <div class="field-group"><label>License No.</label><div class="field-value">{{ driver.license_number|default:"DL-2018-DHAKA-44921" }}</div></div>
                     <div class="field-group"><label>Experience</label><div class="field-value">6 years</div></div>
-                    <div class="field-group"><label>Assigned Bus</label><div class="field-value">Bus {{ driver.assigned_bus.bus_number|default:driver.bus.bus_number|default:"B-12" }} ({{ driver.assigned_bus.capacity|default:driver.bus.capacity|default:"40" }} seats)</div></div>
-                    <div class="field-group"><label>Assigned Route</label><div class="field-value">Route {{ driver.assigned_route.code|default:driver.route.code|default:"03" }} — {{ driver.assigned_route.start|default:driver.route.start|default:"UAP" }} ↔ {{ driver.assigned_route.end|default:driver.route.end|default:"Uttara" }}</div></div>
+                    <div class="field-group"><label>Assigned Bus</label><div class="field-value">Bus {{ driver.bus.bus_number|default:"B-12" }} ({{ driver.bus.capacity|default:"40" }} seats)</div></div>
+                    <div class="field-group"><label>Assigned Route</label><div class="field-value">Route {{ driver.route.code|default:"03" }} — {{ driver.route.start|default:"UAP" }} ↔ {{ driver.route.end|default:"Uttara" }}</div></div>
                 </div>
             </div>
         </section>
-
-        <!-- Other sections remain the same... -->
-
     </main>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast">
     <span class="toast-icon" id="toastIcon">✅</span>
     <span id="toastMsg">Action completed</span>
 </div>
 
-<!-- ✅ FIXED: JavaScript with VS Code friendly syntax and English comments -->
 <script>
-    // ==================== THEME TOGGLE ====================
-    // CHANGE REASON: Persist theme preference in localStorage for consistent UX
     const themeToggle = document.getElementById('themeToggle');
     const toggleIcon = document.getElementById('toggleIcon');
     const html = document.documentElement;
@@ -779,41 +745,23 @@
         setTimeout(() => { themeToggle.style.transform = ''; }, 150);
     });
 
-    // ==================== NAVIGATION ====================
-    // CHANGE REASON: Properly hide all sections before showing target to prevent content overlap
     function navigate(sectionId) {
-        // Hide ALL sections first by removing 'active' class
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        
-        // Show ONLY the target section by adding 'active' class
-        const targetSection = document.getElementById('sec-' + sectionId);
-        if (targetSection) {
-            targetSection.classList.add('active');
-        }
-        
-        // Update sidebar active state for visual feedback
+        document.getElementById('sec-' + sectionId).classList.add('active');
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         const btn = document.querySelector(`[onclick="navigate('${sectionId}')"]`);
         if(btn) btn.classList.add('active');
-        
-        // Close mobile sidebar if open (for responsive design)
         if(window.innerWidth <= 768) {
             document.getElementById('sidebar').classList.remove('open');
         }
-        
-        // Load section-specific data if needed
         if(sectionId === 'passengers') { loadPassengers(); }
         if(sectionId === 'chat') { loadChatMessages(); }
     }
 
-    // ==================== MOBILE SIDEBAR TOGGLE ====================
-    // CHANGE REASON: Toggle sidebar visibility on mobile devices
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('open');
     }
 
-    // ==================== PASSENGER DATA ====================
-    // CHANGE REASON: Mock data for demo - replace with API call in production
     const passengers = [
         {seat:'A-01',name:'Shahrin Rahman',type:'Student',id:'2021-1-60-045',stop:'UAP Gate',boarded:false},
         {seat:'A-02',name:'Rahim Uddin',type:'Student',id:'2022-1-60-028',stop:'UAP Gate',boarded:false},
@@ -827,9 +775,7 @@
 
     function renderPassengers() {
         const tbody = document.getElementById('passengerTable');
-        // CHANGE REASON: Check if element exists before manipulating DOM
         if(!tbody) return;
-        
         tbody.innerHTML = passengers.map((p,i) => `
             <tr>
                 <td><span class="seat-badge">${p.seat}</span></td>
@@ -840,8 +786,6 @@
                 <td><button class="btn ${p.boarded?'btn-green':'btn-outline'}" style="padding: 4px 12px; font-size: 12px;" onclick="toggleBoard(${i})">${p.boarded ? '✓ Boarded' : 'Mark'}</button></td>
             </tr>
         `).join('');
-        
-        // Update all passenger count elements
         const count = passengers.length;
         const countElements = ['passengerCount', 'passengerStat', 'seatCount', 'upcomingPassengers', 'schedulePassengers', 'totalPassengers', 'chatPassengerCount', 'stop1Passengers'];
         countElements.forEach(id => {
@@ -850,185 +794,92 @@
         });
     }
 
-    function toggleBoard(i) { 
-        passengers[i].boarded = !passengers[i].boarded; 
-        renderPassengers(); 
-    }
-    
-    function loadPassengers() { 
-        renderPassengers(); 
-    }
+    function toggleBoard(i) { passengers[i].boarded = !passengers[i].boarded; renderPassengers(); }
+    function loadPassengers() { renderPassengers(); }
 
-    // ==================== TRIP LOGIC ====================
     let tripStarted = false;
-    
     function startTrip() {
         if(tripStarted) return;
         tripStarted = true;
-        
-        // Update UI elements with proper null checks
         const badge = document.getElementById('tripStatusBadge');
-        if(badge) {
-            badge.className = 'trip-badge active';
-            badge.textContent = 'In Progress';
-        }
-        
+        if(badge) { badge.className = 'trip-badge active'; badge.textContent = 'In Progress'; }
         const btnStart = document.getElementById('btnStart');
         const btnComplete = document.getElementById('btnComplete');
         if(btnStart) btnStart.style.display = 'none';
         if(btnComplete) btnComplete.style.display = 'inline-flex';
-        
         const dutyStatus = document.getElementById('dutyStatus');
         if(dutyStatus) dutyStatus.textContent = 'On Trip';
-        
         const statusDot = document.querySelector('.status-dot');
         if(statusDot) statusDot.style.background = 'var(--orange)';
-        
         showToast('🚌 Trip started! Drive safe.');
         startLocationTracking();
     }
-    
     function completeTrip() {
         if(!tripStarted) return;
         tripStarted = false;
-        
         const badge = document.getElementById('tripStatusBadge');
-        if(badge) {
-            badge.className = 'trip-badge completed';
-            badge.textContent = 'Completed';
-        }
-        
+        if(badge) { badge.className = 'trip-badge completed'; badge.textContent = 'Completed'; }
         const btnComplete = document.getElementById('btnComplete');
         if(btnComplete) btnComplete.style.display = 'none';
-        
         const dutyStatus = document.getElementById('dutyStatus');
         if(dutyStatus) dutyStatus.textContent = 'Off Duty';
-        
         const statusDot = document.querySelector('.status-dot');
         if(statusDot) statusDot.style.background = 'var(--dim)';
-        
         showToast('✅ Trip marked complete! Good work.');
         stopLocationTracking();
     }
-    
     let locationInterval = null;
-    
-    function startLocationTracking() {
-        // CHANGE REASON: Mock GPS tracking - replace with real geolocation API in production
-        locationInterval = setInterval(() => { 
-            console.log('📍 Location update sent to server');
-            // In production: send GPS coords to /api/bus/{bus_id}/update/
-        }, 10000);
-    }
-    
-    function stopLocationTracking() { 
-        if(locationInterval) { 
-            clearInterval(locationInterval); 
-            locationInterval = null; 
-        } 
-    }
+    function startLocationTracking() { locationInterval = setInterval(() => { console.log('📍 Location update sent to server'); }, 10000); }
+    function stopLocationTracking() { if(locationInterval) { clearInterval(locationInterval); locationInterval = null; } }
 
-    // ==================== CHAT ====================
     function sendChat() {
         const input = document.getElementById('chatInput');
         const msg = input?.value.trim();
         if(!msg) return;
-        
         const box = document.getElementById('chatBox');
         if(!box) return;
-        
         const now = new Date();
         const t = now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
-        
         box.innerHTML += `<div class="chat-msg sent"><div class="chat-avatar" style="background: rgba(255,107,53,0.15); color: var(--orange);">KH</div><div><div class="chat-bubble">${msg}</div><div class="chat-time">${t}</div></div></div>`;
         input.value = '';
         box.scrollTop = box.scrollHeight;
-        
-        // CHANGE REASON: In production, send to backend via API with CSRF token
-        // apiRequest('/chat/send/{room_id}/', 'POST', {message: msg});
         console.log('💬 Chat message sent:', msg);
     }
-    
-    document.getElementById('chatInput')?.addEventListener('keydown', e => { 
-        if(e.key==='Enter') {
-            e.preventDefault();
-            sendChat(); 
-        }
-    });
+    document.getElementById('chatInput')?.addEventListener('keydown', e => { if(e.key==='Enter') { e.preventDefault(); sendChat(); } });
 
-    // ==================== EMERGENCY ALERT ====================
     function sendEmergencyAlert() {
-        if(!confirm('🚨 Are you sure you want to send an emergency alert? This will notify admin and security immediately.')) {
-            return;
-        }
-        
-        // CHANGE REASON: Show loading state and send to backend in production
+        if(!confirm('🚨 Are you sure you want to send an emergency alert? This will notify admin and security immediately.')) return;
         const btn = document.querySelector('.emergency-btn');
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Sending Alert...';
-        }
-        
-        // In production: send alert with location to /api/emergency/alert/
+        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Sending Alert...'; }
         setTimeout(() => {
             showToast('🚨 Emergency alert sent to admin!', false);
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> SEND EMERGENCY ALERT';
-            }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> SEND EMERGENCY ALERT'; }
         }, 1500);
     }
 
-    // ==================== TOAST NOTIFICATION ====================
-    // CHANGE REASON: Reusable toast function for consistent user feedback
     function showToast(msg, isError = false) {
         const toast = document.getElementById('toast');
         const msgEl = document.getElementById('toastMsg');
         const iconEl = document.getElementById('toastIcon');
-        
-        if (!toast || !msgEl || !iconEl) {
-            console.error('Toast elements not found');
-            return;
-        }
-        
+        if (!toast || !msgEl || !iconEl) return;
         msgEl.textContent = msg;
         iconEl.textContent = isError ? '❌' : '✅';
         toast.className = `toast show${isError ? ' error' : ''}`;
-        
-        // Auto-hide after 3.5 seconds
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3500);
+        setTimeout(() => { toast.classList.remove('show'); }, 3500);
     }
 
-    // ==================== INITIALIZATION ====================
-    // CHANGE REASON: Initialize page data and event listeners on DOM ready
     document.addEventListener('DOMContentLoaded', function() {
-        // Set current date in header
         const dateEl = document.getElementById('currentDate');
         if(dateEl) {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             dateEl.innerHTML = now.toLocaleDateString('en-US', options) + ' · Route XX · Departure in <span id="departureCountdown">42 min</span>';
         }
-        
-        // Load initial data for sections
         loadPassengers();
-        
-        // CHANGE REASON: Add event listener for chat input Enter key
         const chatInput = document.getElementById('chatInput');
-        if (chatInput) {
-            chatInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    sendChat();
-                }
-            });
-        }
+        if (chatInput) { chatInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }); }
     });
 
-    // ==================== API HELPER FUNCTIONS ====================
-    // CHANGE REASON: Reusable API helper with CSRF token for Django
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -1043,28 +894,11 @@
         }
         return cookieValue;
     }
-    
     async function apiRequest(endpoint, method = 'GET', data = null) {
-        const options = {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken'), // CHANGE REASON: Required for Django POST requests
-            },
-        };
-        
-        if(data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-            options.body = JSON.stringify(data);
-        }
-        
-        try {
-            const response = await fetch(endpoint, options);
-            return await response.json();
-        } catch (error) {
-            console.error('API Request failed:', error);
-            showToast('Connection failed. Please check your internet.', true);
-            return null;
-        }
+        const options = { method: method, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') } };
+        if(data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) { options.body = JSON.stringify(data); }
+        try { const response = await fetch(endpoint, options); return await response.json(); }
+        catch (error) { console.error('API Request failed:', error); showToast('Connection failed. Please check your internet.', true); return null; }
     }
 </script>
 </body>
