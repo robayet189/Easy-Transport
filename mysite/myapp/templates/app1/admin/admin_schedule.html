@@ -6,7 +6,7 @@
 {% block page_subtitle %}Manage transport schedules and assignments{% endblock %}
 
 {% block content %}
-<!-- Stats Cards -->
+<!-- Stats Cards Section: Display key metrics for schedule monitoring -->
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-label">Total Schedules</div>
@@ -26,7 +26,7 @@
     </div>
 </div>
 
-<!-- Search & Filter -->
+<!-- Search & Filter Section: Allow admin to filter schedules by various criteria -->
 <div class="search-filter-section">
     <div class="search-wrapper">
         <span class="search-icon">🔍</span>
@@ -46,7 +46,7 @@
     <button class="btn-add" onclick="openAddScheduleModal()">➕ Add New Schedule</button>
 </div>
 
-<!-- Schedules Table -->
+<!-- Schedules Table Section: Display all schedules with action buttons -->
 <div class="card">
     <div class="table-container">
         <table class="data-table">
@@ -92,7 +92,7 @@
     </div>
 </div>
 
-<!-- Add/Edit Schedule Modal -->
+<!-- Add/Edit Schedule Modal: Form for creating or editing transport schedules -->
 <div id="scheduleModal" class="modal-overlay" style="display:none;">
     <div class="modal">
         <div class="modal-header">
@@ -103,7 +103,7 @@
             {% csrf_token %}
             <input type="hidden" id="scheduleId" name="schedule_id">
             
-            <!-- Route Selection -->
+            <!-- Route Selection: Dropdown populated from Django template context -->
             <div class="form-group">
                 <label>Route *</label>
                 <select id="route" name="route" required>
@@ -114,17 +114,17 @@
                 </select>
             </div>
             
-            <!-- Bus Selection - ✅ FIXED: Populated via API with active/inactive indicator -->
+            <!-- Bus Selection: Dynamically populated via API call with active/inactive status -->
             <div class="form-group">
                 <label>Bus *</label>
                 <select id="bus" name="bus" required>
                     <option value="">Select a Bus</option>
                     <!-- Buses will be populated via JavaScript API call -->
                 </select>
-                <small style="color:var(--text-muted);">All buses shown (active/inactive)</small>
+                <small style="color:var(--text-muted);">All buses shown (inactive buses disabled)</small>
             </div>
             
-            <!-- Date & Time -->
+            <!-- Date & Time Fields: Required schedule timing information -->
             <div class="form-row">
                 <div class="form-group">
                     <label>Travel Date *</label>
@@ -136,6 +136,7 @@
                 </div>
             </div>
             
+            <!-- Additional Schedule Details: Arrival time, fare, and seat configuration -->
             <div class="form-row">
                 <div class="form-group">
                     <label>Arrival Time</label>
@@ -161,6 +162,7 @@
                 </div>
             </div>
             
+            <!-- Modal Action Buttons: Save or cancel the schedule operation -->
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-save">Save Schedule</button>
@@ -169,6 +171,7 @@
     </div>
 </div>
 
+<!-- CSS Styles: Scoped styles for schedule management page -->
 <style>
 .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:20px; }
 .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:20px; }
@@ -201,7 +204,7 @@
 
 .empty-row { text-align:center; padding:40px !important; color:var(--text-muted); }
 
-/* Modal */
+/* Modal Styles: Overlay and form styling for schedule modal */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(4px); }
 .modal { background:var(--bg-card); border:1px solid var(--border); border-radius:20px; width:90%; max-width:600px; padding:24px; max-height:90vh; overflow-y:auto; }
 .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
@@ -216,26 +219,45 @@
 .btn-save { background:var(--accent-red); color:white; }
 </style>
 
+<!-- JavaScript Section: Handle schedule CRUD operations and bus dropdown population -->
 <script>
-// ✅ FIXED: Load ALL buses into dropdown with active/inactive indicator
+// ✅ FIXED: Load ALL buses into dropdown with Promise support for chaining
+// CHANGE REASON: Enables proper async handling in editSchedule() function
 function loadBusesDropdown() {
     const busSelect = document.getElementById('bus');
     busSelect.innerHTML = '<option value="">Loading buses...</option>';
     
-    fetch('/admin_page/api/get-buses/', {
+    // Return the fetch promise so callers can chain .then()
+    return fetch('/admin_page/api/get-buses/', {
         headers: { 'X-CSRFToken': getCookie('csrftoken') }
     })
-    .then(res => res.json())
+    .then(res => {
+        // Log response status for debugging
+        console.log('Bus API response status:', res.status);
+        if(!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+    })
     .then(data => {
+        console.log('Bus API data:', data);
         if(data.success) {
             busSelect.innerHTML = '<option value="">Select a Bus</option>';
+            
+            // Handle empty bus list case
+            if(data.buses.length === 0) {
+                busSelect.innerHTML = '<option value="">No buses available</option>';
+                showToast('No buses found. Please add a bus first.', true);
+                return;
+            }
+            
             data.buses.forEach(bus => {
                 const option = document.createElement('option');
                 option.value = bus.id;
-                // ✅ FIXED: Show active/inactive status in dropdown text
+                // Show active/inactive status in dropdown text for clarity
                 const statusText = bus.is_active ? '' : ' (Inactive)';
                 option.textContent = `${bus.bus_number} (${bus.capacity} seats)${statusText}`;
-                // ✅ FIXED: Disable inactive buses by default (admin can enable if needed via backend)
+                // Disable inactive buses but keep them visible for reference
                 if(!bus.is_active) {
                     option.disabled = true;
                     option.style.color = 'var(--text-muted)';
@@ -244,17 +266,19 @@ function loadBusesDropdown() {
             });
         } else {
             busSelect.innerHTML = '<option value="">Failed to load buses</option>';
-            showToast(data.message, true);
+            showToast(data.message || 'Failed to load buses', true);
+            console.error('Bus API error:', data.message);
         }
     })
     .catch(error => {
-        busSelect.innerHTML = '<option value="">Error loading buses</option>';
         console.error('Error loading buses:', error);
-        showToast('Failed to load bus list', true);
+        busSelect.innerHTML = '<option value="">Error loading buses</option>';
+        showToast('Failed to connect to server. Please check your connection.', true);
     });
 }
 
 // ✅ FIXED: Auto-fill available seats when bus is selected
+// CHANGE REASON: Improves user experience by auto-populating seat count from bus capacity
 document.addEventListener('DOMContentLoaded', function() {
     const busSelect = document.getElementById('bus');
     const seatsInput = document.getElementById('availableSeats');
@@ -262,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if(busSelect && seatsInput) {
         busSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
-            // Extract capacity from option text: "BUS-001 (40 seats)" -> 40
+            // Extract capacity from option text format: "BUS-001 (40 seats)" -> 40
             const match = selectedOption.textContent.match(/\((\d+)\s*seats?\)/);
             if(match && match[1]) {
                 seatsInput.value = match[1];
@@ -271,6 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Filter table rows based on search query, date filter, and status filter
 function filterTable() {
     const q = document.getElementById('searchInput').value.toLowerCase();
     const dateFilter = document.getElementById('dateFilter').value;
@@ -303,21 +328,26 @@ function filterTable() {
     });
 }
 
+// Open modal for adding new schedule and load buses dynamically
 function openAddScheduleModal() {
     document.getElementById('modalTitle').textContent = 'Add New Schedule';
     document.getElementById('scheduleForm').reset();
     document.getElementById('scheduleId').value = '';
     document.getElementById('scheduleModal').style.display = 'flex';
-    loadBusesDropdown(); // ✅ Load buses when modal opens
+    loadBusesDropdown(); // Load buses when modal opens
 }
 
-// ✅ FIXED: Proper editSchedule function that fetches data and populates form
+// ✅ FIXED: Edit schedule with proper Promise chaining for bus loading
+// CHANGE REASON: Ensures buses are loaded before setting selected value
 function editSchedule(scheduleId) {
+    console.log('Editing schedule:', scheduleId);
+    
     fetch(`/admin_page/api/schedule/${scheduleId}/`, {
         headers: { 'X-CSRFToken': getCookie('csrftoken') }
     })
     .then(res => res.json())
     .then(data => {
+        console.log('Schedule data:', data);
         if(data.success) {
             const schedule = data.schedule;
             document.getElementById('modalTitle').textContent = 'Edit Schedule';
@@ -330,22 +360,27 @@ function editSchedule(scheduleId) {
             document.getElementById('availableSeats').value = schedule.available_seats;
             document.getElementById('isActive').value = schedule.is_active ? 'true' : 'false';
             
-            // Load buses and set selected bus
+            // Load buses first, then set the selected bus value
             loadBusesDropdown().then(() => {
-                document.getElementById('bus').value = schedule.bus;
+                // Small delay to ensure DOM is updated before setting value
+                setTimeout(() => {
+                    document.getElementById('bus').value = schedule.bus;
+                }, 100);
             });
             
             document.getElementById('scheduleModal').style.display = 'flex';
         } else {
-            showToast(data.message, true);
+            showToast(data.message || 'Failed to load schedule', true);
+            console.error('Schedule API error:', data.message);
         }
     })
     .catch(error => {
+        console.error('Error fetching schedule:', error);
         showToast('Failed to load schedule data', true);
-        console.error('Error:', error);
     });
 }
 
+// Save schedule via API with proper error handling
 function saveSchedule(e) {
     e.preventDefault();
     const scheduleId = document.getElementById('scheduleId').value;
@@ -363,6 +398,8 @@ function saveSchedule(e) {
         is_active: document.getElementById('isActive').value === 'true'
     };
     
+    console.log('Saving schedule:', formData);
+    
     fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
@@ -370,20 +407,22 @@ function saveSchedule(e) {
     })
     .then(res => res.json())
     .then(data => {
+        console.log('Save response:', data);
         if(data.success) { 
             showToast(data.message); 
             closeModal(); 
             setTimeout(() => location.reload(), 1000); 
         } else { 
-            showToast(data.message, true); 
+            showToast(data.message || 'Failed to save schedule', true); 
         }
     })
     .catch(error => {
-        showToast('An error occurred', true);
-        console.error('Error:', error);
+        console.error('Error saving schedule:', error);
+        showToast('An error occurred while saving', true);
     });
 }
 
+// Toggle schedule active/inactive status via API
 function toggleScheduleStatus(scheduleId) {
     fetch(`/admin_page/api/toggle-schedule/${scheduleId}/`, {
         method: 'POST',
@@ -395,11 +434,12 @@ function toggleScheduleStatus(scheduleId) {
         setTimeout(() => location.reload(), 1000); 
     })
     .catch(error => {
+        console.error('Error toggling schedule:', error);
         showToast('Failed to toggle status', true);
-        console.error('Error:', error);
     });
 }
 
+// Delete schedule with confirmation and API call
 function deleteSchedule(scheduleId) {
     if(!confirm('Delete this schedule? This cannot be undone.')) return;
     fetch(`/admin_page/api/delete-schedule/${scheduleId}/`, {
@@ -412,15 +452,17 @@ function deleteSchedule(scheduleId) {
         if(data.success) setTimeout(() => location.reload(), 1000); 
     })
     .catch(error => {
+        console.error('Error deleting schedule:', error);
         showToast('Failed to delete schedule', true);
-        console.error('Error:', error);
     });
 }
 
+// Close modal and reset state
 function closeModal() { 
     document.getElementById('scheduleModal').style.display = 'none'; 
 }
 
+// Show toast notification with auto-dismiss
 function showToast(msg, isError = false) {
     const toast = document.createElement('div');
     toast.style.cssText = `position:fixed; bottom:28px; right:28px; background:#1c1c2e; border:1px solid var(--border); border-left:3px solid ${isError?'#ff4757':'#00c896'}; border-radius:12px; padding:14px 18px; font-size:13px; color:#fff; z-index:9999; transform:translateY(60px); opacity:0; transition:all 0.25s;`;
@@ -430,6 +472,7 @@ function showToast(msg, isError = false) {
     setTimeout(() => { toast.style.transform = 'translateY(60px)'; toast.style.opacity = '0'; setTimeout(() => toast.remove(), 250); }, 2800);
 }
 
+// Get CSRF token from cookies for AJAX requests
 function getCookie(name) {
     let cookieValue = null;
     if(document.cookie) {
@@ -444,8 +487,12 @@ function getCookie(name) {
     return cookieValue;
 }
 
+// Close modal when clicking outside
 document.getElementById('scheduleModal').addEventListener('click', function(e) { 
     if(e.target === this) closeModal(); 
 });
+
+// ✅ DEBUG: Log page load for troubleshooting
+console.log('Admin Schedule page loaded');
 </script>
 {% endblock %}
