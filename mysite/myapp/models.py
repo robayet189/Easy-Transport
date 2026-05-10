@@ -1,3 +1,4 @@
+# Import Django model utilities and User model for authentication
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -19,6 +20,7 @@ class UserProfile(models.Model):
         ('industrial', 'Industrial'),
     ]
 
+    # One-to-one relationship with Django User model for authentication
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     phone = models.CharField(max_length=15, blank=True)
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='student')
@@ -113,6 +115,7 @@ class Booking(models.Model):
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_bookings')
 
     def save(self, *args, **kwargs):
+        # Generate unique booking ID if not already set
         if not self.booking_id:
             import random, string
             self.booking_id = 'BK-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -191,6 +194,7 @@ class PaymentTransaction(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
+        # Generate unique transaction ID if not already set
         if not self.transaction_id:
             import random, string
             self.transaction_id = 'TXN' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
