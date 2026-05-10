@@ -879,8 +879,9 @@ def driver_profile(request):
         # CHANGE: Show success message
         messages.success(request, 'Profile updated successfully!')
         
-        # CHANGE: Redirect to same page to show updated data (prevents form resubmission)
-        return redirect('driver_profile')
+        # ✅ FIXED: Redirect to driver_dashboard instead of driver_profile
+        # CHANGE REASON: Prevents logout redirect loop - ensures user goes to dashboard after profile update
+        return redirect('driver_dashboard')
     
     # For GET request, pass both user and driver to template
     context = {
