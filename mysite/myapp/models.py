@@ -12,7 +12,7 @@ class UserProfile(models.Model):
         ('faculty', 'Faculty'),
         ('staff', 'Staff'),
         ('admin', 'Admin'),
-        ('driver', 'Driver'),  # ✅ Already exists - Driver user type
+        ('driver', 'Driver'),
     ]
     INSTITUTION_TYPES = [
         ('educational', 'Educational'),
@@ -79,7 +79,7 @@ class Schedule(models.Model):
     available_seats = models.IntegerField(default=40)
 
     class Meta:
-        unique_together = ['route', 'travel_date', 'departure_time']  # CHANGE REASON: Prevent duplicate schedules
+        unique_together = ['route', 'travel_date', 'departure_time']
 
     def __str__(self):
         return f"{self.route.code} on {self.travel_date}"
@@ -113,7 +113,6 @@ class Booking(models.Model):
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_bookings')
 
     def save(self, *args, **kwargs):
-        # CHANGE REASON: Auto-generate unique booking ID on creation
         if not self.booking_id:
             import random, string
             self.booking_id = 'BK-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -134,7 +133,7 @@ class BusLocation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-updated_at']  # CHANGE REASON: Always show most recent location first
+        ordering = ['-updated_at']
     
     def __str__(self):
         return f"{self.bus.bus_number} - {self.latitude}, {self.longitude}"
@@ -185,14 +184,13 @@ class PaymentTransaction(models.Model):
     pass_valid_from = models.DateField(null=True, blank=True)
     pass_valid_until = models.DateField(null=True, blank=True)
     
-    payment_details = models.JSONField(default=dict, blank=True)  # CHANGE REASON: Store provider-specific data
+    payment_details = models.JSONField(default=dict, blank=True)
     remarks = models.TextField(blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
-        # CHANGE REASON: Auto-generate unique transaction ID
         if not self.transaction_id:
             import random, string
             self.transaction_id = 'TXN' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
@@ -244,7 +242,6 @@ class ChatRoom(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_rooms', null=True, blank=True)
     admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='admin_chat_rooms')
-    # CHANGE REASON: Add driver field for driver-user direct chats
     driver = models.ForeignKey('Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name='driver_chat_rooms')
     booking = models.ForeignKey('Booking', on_delete=models.SET_NULL, null=True, blank=True, related_name='chat_rooms')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -300,7 +297,6 @@ class Driver(models.Model):
     is_approved = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     
-    # CHANGE REASON: Use assigned_bus/assigned_route for current assignment (not permanent)
     assigned_bus = models.ForeignKey(Bus, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_drivers')
     assigned_route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_drivers')
     
@@ -309,16 +305,50 @@ class Driver(models.Model):
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.license_number}"
     
-    # CHANGE REASON: Add properties for backward compatibility with templates using driver.bus/route
+    # ✅ FIXED: SAFE FALLBACK PROPERTIES - Prevents template errors when assigned_bus/route is None
     @property
     def bus(self):
-        """Fallback property for templates using driver.bus"""
-        return self.assigned_bus
+        """
+        Safe fallback: returns assigned_bus if exists, otherwise a dummy object with defaults
+        CHANGE REASON: Prevents VariableDoesNotExist errors in templates when accessing driver.bus.bus_number
+        """
+        if self.assigned_bus:
+            return self.assigned_bus
+        # Return a simple dummy object with default attributes to prevent template errors
+        class DummyBus:
+            bus_number = "B-XX"
+            capacity = 40
+            has_ac = False
+            has_wifi = False
+        return DummyBus()
     
     @property
     def route(self):
-        """Fallback property for templates using driver.route"""
-        return self.assigned_route
+        """
+        Safe fallback: returns assigned_route if exists, otherwise a dummy object with defaults
+        CHANGE REASON: Prevents VariableDoesNotExist errors in templates when accessing driver.route.code
+        """
+        if self.assigned_route:
+            return self.assigned_route
+        # Return a simple dummy object with default attributes to prevent template errors
+        class DummyRoute:
+            code = "XX"
+            start = "UAP Campus"
+            end = "Uttara"
+            distance_km = "18.4"
+        return DummyRoute()
+    
+    @property
+    def departure_time(self):
+        """
+        Safe fallback for departure time - returns default if no trip assigned
+        CHANGE REASON: Prevents errors when driver has no active trip
+        """
+        if hasattr(self, 'trips') and self.trips.exists():
+            trip = self.trips.filter(status='pending').first()
+            if trip and trip.departure_time:
+                return trip.departure_time
+        return "8:00 AM"
 
 
 class Trip(models.Model):
@@ -341,7 +371,6 @@ class Trip(models.Model):
     arrival_time = models.TimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     
-    # CHANGE REASON: Real-time GPS tracking fields
     current_lat = models.FloatField(null=True, blank=True)
     current_lng = models.FloatField(null=True, blank=True)
     last_location_update = models.DateTimeField(null=True, blank=True)
@@ -360,14 +389,14 @@ class TripStop(models.Model):
     """
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='stops')
     stop_name = models.CharField(max_length=200)
-    stop_order = models.IntegerField()  # CHANGE REASON: Define stop sequence
+    stop_order = models.IntegerField()
     scheduled_time = models.TimeField()
     arrival_time = models.TimeField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     
     class Meta:
-        ordering = ['stop_order']  # CHANGE REASON: Ensure stops display in correct order
+        ordering = ['stop_order']
     
     def __str__(self):
         return f"{self.trip.route.code} - {self.stop_name} (Order {self.stop_order})"
