@@ -1,4 +1,4 @@
-{% load static %}
+% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -486,7 +486,7 @@
             <button class="nav-item" onclick="navigate('passengers')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 Passengers
-                <span class="nav-badge" id="passengerCount">0</span>
+                <span class="nav-badge" id="passengerCount">{{ passenger_count|default:0 }}</span>
             </button>
         </div>
 
@@ -542,13 +542,14 @@
                 </button>
             </div>
 
+            <!-- ✅ FIXED: Stats cards now use dynamic context variables -->
             <div class="stats-grid">
                 <div class="stat-card green">
                     <div class="stat-icon green">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     </div>
                     <div class="stat-label">Passengers Today</div>
-                    <div class="stat-value" id="passengerStat">0</div>
+                    <div class="stat-value" id="passengerStat">{{ passenger_count|default:0 }}</div>
                     <div class="stat-sub">Capacity: {{ driver.bus.capacity|default:"40" }} seats</div>
                 </div>
                 <div class="stat-card orange">
@@ -556,15 +557,15 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     </div>
                     <div class="stat-label">Trips Completed</div>
-                    <div class="stat-value" id="tripsCompleted">0</div>
-                    <div class="stat-sub">1 more scheduled</div>
+                    <div class="stat-value" id="tripsCompleted">{{ trips_completed|default:0 }}</div>
+                    <div class="stat-sub">{{ upcoming_trips.count|default:0 }} more scheduled</div>
                 </div>
                 <div class="stat-card gold">
                     <div class="stat-icon gold">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     </div>
                     <div class="stat-label">Today's Earnings</div>
-                    <div class="stat-value" id="todayEarnings">৳0</div>
+                    <div class="stat-value" id="todayEarnings">৳{{ today_earnings|default:0 }}</div>
                     <div class="stat-sub">+৳0 vs yesterday</div>
                 </div>
                 <div class="stat-card blue">
@@ -587,15 +588,24 @@
 
             <div class="two-col">
                 <div>
+                    <!-- ✅ FIXED: Trip status card now shows ongoing trip if exists -->
                     <div class="trip-status-card">
                         <div class="trip-status-header">
                             <div style="font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;">Current Trip</div>
-                            <span class="trip-badge idle" id="tripStatusBadge">Idle – Not Started</span>
+                            {% if ongoing_trip %}
+                                <span class="trip-badge active" id="tripStatusBadge">In Progress</span>
+                            {% else %}
+                                <span class="trip-badge idle" id="tripStatusBadge">Idle – Not Started</span>
+                            {% endif %}
                         </div>
                         <div class="route-line">
                             <div class="route-stop">
                                 <div class="route-stop-label">FROM</div>
-                                <div class="route-stop-name">{{ driver.route.start|default:"UAP Campus" }}</div>
+                                {% if ongoing_trip %}
+                                    <div class="route-stop-name">{{ ongoing_trip.route.start|default:driver.route.start|default:"UAP Campus" }}</div>
+                                {% else %}
+                                    <div class="route-stop-name">{{ driver.route.start|default:"UAP Campus" }}</div>
+                                {% endif %}
                             </div>
                             <div class="route-connector">
                                 <div class="route-connector-line">
@@ -604,68 +614,86 @@
                             </div>
                             <div class="route-stop" style="text-align: right;">
                                 <div class="route-stop-label">TO</div>
-                                <div class="route-stop-name">{{ driver.route.end|default:"Uttara" }}</div>
+                                {% if ongoing_trip %}
+                                    <div class="route-stop-name">{{ ongoing_trip.route.end|default:driver.route.end|default:"Uttara" }}</div>
+                                {% else %}
+                                    <div class="route-stop-name">{{ driver.route.end|default:"Uttara" }}</div>
+                                {% endif %}
                             </div>
                         </div>
                         <div style="display: flex; gap: 10px; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 18px; flex-wrap: wrap;">
-                            <span>🕐 Depart: {{ driver.departure_time|default:"8:00 AM" }}</span>
+                            <span>🕐 Depart: {{ ongoing_trip.departure_time|default:driver.departure_time|default:"8:00 AM" }}</span>
                             <span>📍 Distance: {{ driver.route.distance_km|default:"18.4" }} km</span>
-                            <span>👥 <span id="seatCount">0</span> / {{ driver.bus.capacity|default:"40" }} seats</span>
+                            <span>👥 <span id="seatCount">{{ passenger_count|default:0 }}</span> / {{ driver.bus.capacity|default:"40" }} seats</span>
                         </div>
                         <div class="trip-actions">
-                            <button class="btn btn-green" style="flex: 1;" onclick="startTrip()">▶ Start Trip</button>
+                            {% if ongoing_trip %}
+                                <button class="btn btn-green" style="flex: 1;" onclick="window.location.href=`{% url 'trip_detail' ongoing_trip.id %}`">▶ View Trip</button>
+                            {% else %}
+                                <button class="btn btn-green" style="flex: 1;" onclick="navigate('trip')">▶ Start Trip</button>
+                            {% endif %}
                             <button class="btn btn-outline" onclick="navigate('route')">View Route</button>
                         </div>
                     </div>
 
+                    <!-- ✅ FIXED: Today's Trips now loops through actual today_trips from context -->
                     <div class="card">
                         <div class="card-title"><span class="dot"></span>Today's Trips</div>
-                        <div class="schedule-item">
-                            <div class="schedule-time">6:45</div>
-                            <div class="schedule-dot-col">
-                                <div class="schedule-dot done"></div>
-                                <div class="schedule-line"></div>
+                        
+                        {% if today_trips %}
+                            {% for trip in today_trips %}
+                            <div class="schedule-item">
+                                <div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div>
+                                <div class="schedule-dot-col">
+                                    <div class="schedule-dot {% if trip.status == 'completed' %}done{% elif trip.status == 'ongoing' %}done{% else %}upcoming{% endif %}"></div>
+                                    {% if not forloop.last %}<div class="schedule-line"></div>{% endif %}
+                                </div>
+                                <div class="schedule-info">
+                                    <div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div>
+                                    <div class="schedule-detail">
+                                        <span class="badge badge-{% if trip.status == 'completed' %}green{% elif trip.status == 'ongoing' %}blue{% else %}gold{% endif %}">
+                                            {{ trip.get_status_display }}
+                                        </span>
+                                        · {{ trip.bus.bus_number }}
+                                    </div>
+                                </div>
                             </div>
-                            <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.route.start|default:"Uttara" }} → {{ driver.route.end|default:"UAP Campus" }}</div>
-                                <div class="schedule-detail"><span class="badge badge-green">Completed</span> · 32 passengers</div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align: center; color: var(--muted); padding: 20px;">
+                                No trips scheduled for today
                             </div>
-                        </div>
-                        <div class="schedule-item">
-                            <div class="schedule-time">8:00</div>
-                            <div class="schedule-dot-col">
-                                <div class="schedule-dot"></div>
-                                <div class="schedule-line"></div>
-                            </div>
-                            <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.route.start|default:"UAP Campus" }} → {{ driver.route.end|default:"Uttara" }}</div>
-                                <div class="schedule-detail"><span class="badge badge-gold">Upcoming</span> · <span id="upcomingPassengers">0</span> booked</div>
-                            </div>
-                        </div>
-                        <div class="schedule-item">
-                            <div class="schedule-time">1:30</div>
-                            <div class="schedule-dot-col">
-                                <div class="schedule-dot upcoming"></div>
-                            </div>
-                            <div class="schedule-info">
-                                <div class="schedule-route">{{ driver.route.end|default:"Uttara" }} → {{ driver.route.start|default:"UAP Campus" }}</div>
-                                <div class="schedule-detail"><span class="badge badge-muted">Scheduled</span> · 18 booked</div>
-                            </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
                 <div>
+                    <!-- ✅ FIXED: Upcoming trips now loops through upcoming_trips from context -->
                     <div class="card">
-                        <div class="card-title"><span class="dot"></span>Passengers (8:00 AM Trip)</div>
-                        <div id="passengerPreview">
-                            <div style="text-align: center; color: var(--muted); padding: 20px;">Loading passengers...</div>
-                        </div>
-                        <div style="margin-top: 14px;">
-                            <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="navigate('passengers')">
-                                View All Passengers →
-                            </button>
-                        </div>
+                        <div class="card-title"><span class="dot"></span>Upcoming Trips</div>
+                        
+                        {% if upcoming_trips %}
+                            {% for trip in upcoming_trips %}
+                            <div class="schedule-item">
+                                <div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div>
+                                <div class="schedule-dot-col">
+                                    <div class="schedule-dot upcoming"></div>
+                                    {% if not forloop.last %}<div class="schedule-line"></div>{% endif %}
+                                </div>
+                                <div class="schedule-info">
+                                    <div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div>
+                                    <div class="schedule-detail">
+                                        <span class="badge badge-gold">Scheduled</span>
+                                        · {{ trip.travel_date|date:"M d" }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align: center; color: var(--muted); padding: 20px;">
+                                No upcoming trips
+                            </div>
+                        {% endif %}
                     </div>
 
                     <div class="card">
@@ -689,6 +717,7 @@
             </div>
         </section>
 
+        <!-- Profile Section (hidden by default, shown via JS navigation) -->
         <section id="sec-profile" class="section">
             <div class="page-header">
                 <div>
