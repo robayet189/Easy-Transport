@@ -1,3 +1,4 @@
+# Import required Django modules and utilities for view functions
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -21,12 +22,18 @@ from datetime import datetime, timedelta
 # ==================== HELPER FUNCTIONS ====================
 
 def is_ajax(request):
-    """Check if request is AJAX - CHANGE REASON: Support both jQuery & Fetch API"""
+    """
+    Check if request is AJAX - CHANGE REASON: Support both jQuery & Fetch API
+    Returns True if request contains AJAX headers
+    """
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
 
 def get_profile_context(user):
-    """Helper to get profile context data - CHANGE REASON: Centralize profile data retrieval"""
+    """
+    Helper to get profile context data - CHANGE REASON: Centralize profile data retrieval
+    Returns dictionary with user profile information for template context
+    """
     profile, created = UserProfile.objects.get_or_create(user=user)
     is_active = getattr(profile, 'is_pass_active', False)
     pass_date = getattr(profile, 'pass_valid_until', None)
@@ -42,22 +49,31 @@ def get_profile_context(user):
 # ==================== AUTH & PAGES ====================
 
 def homepage(request):
+    """Render the homepage template"""
     return render(request, 'app1/Homepage.html')
 
 def register_page(request):
+    """Render the user registration page template"""
     return render(request, 'app1/register.html')
 
 def login_page(request):
+    """Render the user login page template"""
     return render(request, 'app1/login.html')
 
 def account_created_page(request):
+    """Render the account creation success page template"""
     return render(request, 'app1/account_created.html')
 
 @require_http_methods(["POST"])
 def register_user(request):
+    """
+    Handle user registration via POST request - CHANGE REASON: API endpoint for user signup
+    Validates input, creates user account, and returns JSON response
+    """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
     
+    # Extract and sanitize form data from POST request
     full_name = request.POST.get('full_name', '').strip()
     email = request.POST.get('email', '').strip().lower()
     password = request.POST.get('password', '')
@@ -66,36 +82,44 @@ def register_user(request):
     user_type = request.POST.get('user_type', 'student').strip().lower()
     institution_id = request.POST.get('institution_id', '').strip()
     
+    # Validate that all required fields are provided
     if not all([full_name, email, password, phone, institution_type, user_type, institution_id]):
         return JsonResponse({'success': False, 'message': 'All fields are required'}, status=400)
     
+    # Check if email is already registered in the system
     if User.objects.filter(email=email).exists():
         return JsonResponse({'success': False, 'message': 'Email already registered'}, status=400)
     
+    # Validate password length for security requirements
     if len(password) < 6:
         return JsonResponse({'success': False, 'message': 'Password must be at least 6 characters'}, status=400)
     
+    # Validate email format using regex pattern matching
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
         return JsonResponse({'success': False, 'message': 'Invalid email format'}, status=400)
     
     try:
+        # Generate unique username from email with counter for duplicates
         username = email.split('@')[0]
         counter = 1
         while User.objects.filter(username=username).exists():
             username = f"{email.split('@')[0]}_{counter}"
             counter += 1
         
+        # Create new user account with provided credentials and profile data
         user = User.objects.create_user(
             username=username, email=email, password=password,
             first_name=full_name.split()[0] if ' ' in full_name else full_name,
             last_name=full_name.split()[-1] if ' ' in full_name and len(full_name.split()) > 1 else ''
         )
         
+        # Create associated user profile with additional institution data
         UserProfile.objects.create(
             user=user, phone=phone, institution_type=institution_type,
             user_type=user_type, institution_id=institution_id
         )
         
+        # Create driver profile if user type is driver with auto-generated license
         if user_type == 'driver':
             unique_license = f"DL-{timezone.now().strftime('%Y%m%d')}-{random.randint(10000, 99999)}-{user.id}"
             if not Driver.objects.filter(user=user).exists():
@@ -110,6 +134,7 @@ def register_user(request):
                     is_active=True
                 )
         
+        # Return success response with redirect URL for frontend navigation
         return JsonResponse({
             'success': True, 
             'message': 'Account created successfully! Please login to continue.',
@@ -122,14 +147,20 @@ def register_user(request):
 
 @require_http_methods(["POST"])
 def login_user(request):
+    """
+    Handle user authentication via POST request - CHANGE REASON: API endpoint for user login
+    Validates credentials and returns appropriate redirect URL based on user role
+    """
     username_or_email = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     
+    # Validate that both username/email and password are provided
     if not username_or_email or not password:
         return JsonResponse({'success': False, 'message': 'Please enter username/email and password'}, status=400)
     
     user = None
     
+    # Attempt authentication with email if @ symbol is present in input
     if '@' in username_or_email:
         try:
             user_obj = User.objects.get(email__iexact=username_or_email)
@@ -137,9 +168,11 @@ def login_user(request):
         except User.DoesNotExist:
             user = None
     else:
+        # Attempt authentication with username directly
         user = authenticate(request, username=username_or_email, password=password)
     
     if user is not None:
+        # Log in user and determine appropriate redirect URL based on role
         login(request, user)
         redirect_url = '/dashboard/'
         
@@ -157,13 +190,16 @@ def login_user(request):
         except Exception:
             redirect_url = '/dashboard/'
         
+        # Generate personalized welcome message based on user role
         full_name = user.get_full_name() or user.username
         msg = f'Welcome back Admin, {full_name}!' if 'admin' in redirect_url else f'Welcome back, {full_name}!'
         return JsonResponse({'success': True, 'message': msg, 'redirect_url': redirect_url})
     
+    # Return error response for invalid credentials
     return JsonResponse({'success': False, 'message': 'Invalid username/email or password'}, status=401)
 
 def logout_user(request):
+    """Handle user logout and redirect to homepage"""
     logout(request)
     messages.success(request, 'Logged out successfully')
     return redirect('homepage')
@@ -173,6 +209,7 @@ def logout_user(request):
 def forgot_password(request):
     """
     Handle password reset request - CHANGE REASON: Only accessible via /forgot-password/ URL
+    Processes email submission and sends reset instructions if account exists
     """
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
@@ -208,6 +245,7 @@ def password_reset_confirm_view(request, uidb64, token):
     """
     Handle password reset confirmation with new password
     CHANGE REASON: Secure token-based password reset flow
+    Validates token and updates user password if valid
     """
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
@@ -278,6 +316,7 @@ def password_reset_request(request):
 
 @login_required
 def dashboard(request):
+    """Render user dashboard with booking history and pass status"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     today = timezone.now().date()
@@ -304,6 +343,7 @@ def dashboard(request):
 
 @login_required
 def schedule(request):
+    """Render transport schedule page with filtering options"""
     try:
         today = timezone.now().date()
         routes = Schedule.objects.filter(is_active=True, travel_date__gte=today).select_related('route', 'bus').order_by('travel_date', 'departure_time')
@@ -318,6 +358,7 @@ def schedule(request):
 
 @login_required
 def schedule_details(request, schedule_id):
+    """Return schedule details as JSON for AJAX requests"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     return JsonResponse({
         'success': True,
@@ -335,6 +376,7 @@ def schedule_details(request, schedule_id):
 
 @login_required
 def profile(request):
+    """Handle user profile viewing and updating"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     if request.method == 'POST':
@@ -358,6 +400,7 @@ def profile(request):
 
 @login_required
 def edit_profile(request):
+    """Handle user profile editing with form validation"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     if request.method == 'POST':
@@ -378,6 +421,7 @@ def edit_profile(request):
 
 @login_required
 def change_password(request):
+    """Handle password change with current password verification"""
     if request.method == 'POST':
         user = request.user
         current_password = request.POST.get('current_password')
@@ -403,6 +447,7 @@ def change_password(request):
 
 @login_required
 def renew_pass(request):
+    """Handle transport pass renewal with 30-day extension"""
     if request.method == 'POST':
         user = request.user
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -422,6 +467,7 @@ def renew_pass(request):
 
 @login_required
 def book_ticket(request, schedule_id):
+    """Handle seat booking with availability check and payment processing"""
     if request.method == 'POST':
         try:
             schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
@@ -465,6 +511,7 @@ def book_ticket(request, schedule_id):
 
 @login_required
 def my_bookings(request):
+    """Display user's booking history with summary statistics"""
     bookings = Booking.objects.filter(user=request.user).select_related('schedule__route').order_by('-booking_date')
     context = {
         'bookings': bookings,
@@ -477,6 +524,7 @@ def my_bookings(request):
 
 @login_required
 def booking_detail(request, booking_id):
+    """Display detailed information for a specific booking"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     context = {'booking': booking}
     if is_ajax(request):
@@ -485,6 +533,7 @@ def booking_detail(request, booking_id):
 
 @login_required
 def cancel_booking(request, booking_id):
+    """Handle booking cancellation with seat availability restoration"""
     if request.method == 'POST':
         booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
         if booking.status == 'cancelled':
@@ -500,6 +549,7 @@ def cancel_booking(request, booking_id):
 
 @login_required
 def check_seat_availability(request, schedule_id):
+    """Return seat availability information as JSON for frontend display"""
     schedule = get_object_or_404(Schedule, id=schedule_id)
     return JsonResponse({
         'available_seats': schedule.available_seats,
@@ -511,6 +561,7 @@ def check_seat_availability(request, schedule_id):
 
 @login_required
 def select_seats(request, schedule_id):
+    """Render seat selection interface with booked seats highlighted"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     booked_seats = Booking.objects.filter(schedule=schedule, status='confirmed').values_list('seat_number', flat=True)
     booked_seat_list = [s for s in booked_seats if s]
@@ -521,6 +572,7 @@ def select_seats(request, schedule_id):
 
 @login_required
 def confirm_booking(request):
+    """Process booking confirmation with seat reservation and payment"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -544,16 +596,19 @@ def confirm_booking(request):
 
 @login_required
 def booking_confirmation(request, booking_id):
+    """Display booking confirmation page with trip details"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation.html', {'booking': booking})
 
 def bus_schedule(request):
+    """Render bus schedule overview page"""
     return render(request, 'app1/bus_schedule.html')
 
 # ==================== 2-STEP BOOKING SYSTEM ====================
 
 @login_required
 def trip_summary(request, schedule_id):
+    """Display trip summary before seat selection"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     context = {
         'schedule': schedule,
@@ -569,6 +624,7 @@ def trip_summary(request, schedule_id):
 
 @login_required
 def seat_selection(request, schedule_id):
+    """Render interactive seat selection interface with availability"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     total_seats = schedule.bus.capacity
     rows = total_seats // 4
@@ -588,6 +644,7 @@ def seat_selection(request, schedule_id):
 
 @login_required
 def confirm_booking_seat(request):
+    """Process 2-step booking confirmation with seat selection"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -611,11 +668,13 @@ def confirm_booking_seat(request):
 
 @login_required
 def booking_confirmation_seat(request, booking_id):
+    """Display confirmation page for 2-step booking flow"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
 
 @login_required
 def track_bus(request):
+    """Render real-time bus tracking interface"""
     return render(request, 'app1/track_bus.html')
 
 # ==================== BUS TRACKING API (DRF) ====================
@@ -627,6 +686,7 @@ from .models import Bus, BusLocation
 
 @api_view(['POST'])
 def update_bus_location(request, bus_id):
+    """API endpoint to update bus GPS location - CHANGE REASON: Real-time tracking support"""
     try:
         bus = Bus.objects.get(id=bus_id)
         lat = request.data.get('lat') or request.data.get('latitude')
@@ -640,6 +700,7 @@ def update_bus_location(request, bus_id):
 
 @api_view(['GET'])
 def get_bus_location(request, bus_id):
+    """API endpoint to retrieve latest bus location - CHANGE REASON: Frontend tracking display"""
     try:
         bus = Bus.objects.get(id=bus_id)
         latest_location = BusLocation.objects.filter(bus=bus).first()
@@ -656,6 +717,7 @@ def get_bus_location(request, bus_id):
 
 @api_view(['GET'])
 def get_all_buses_location(request):
+    """API endpoint to retrieve all bus locations for map display"""
     buses = Bus.objects.all()
     data = []
     for bus in buses:
@@ -671,6 +733,7 @@ def get_all_buses_location(request):
 
 @login_required
 def track_bus_api(request):
+    """Render bus tracking page with all active buses"""
     buses = Bus.objects.filter(is_active=True)
     return render(request, 'app1/track_bus_api.html', {'buses': buses})
 
@@ -680,6 +743,7 @@ from .models import ChatRoom, ChatMessage
 
 @login_required
 def chat_list(request):
+    """Display chat room list based on user role"""
     if request.user.profile.user_type == 'admin':
         chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user')
     else:
@@ -689,6 +753,7 @@ def chat_list(request):
 
 @login_required
 def chat_room(request, room_id):
+    """Display chat room with message history and real-time updates"""
     room = get_object_or_404(ChatRoom, id=room_id)
     if request.user.profile.user_type != 'admin' and room.user != request.user:
         messages.error(request, 'You do not have permission to view this chat.')
@@ -699,6 +764,7 @@ def chat_room(request, room_id):
 
 @login_required
 def start_chat(request, booking_id=None):
+    """Create new chat room or redirect to existing one"""
     if request.method == 'POST':
         user_id = request.POST.get('user_id')
         subject = request.POST.get('subject', '')
@@ -713,6 +779,7 @@ def start_chat(request, booking_id=None):
 
 @login_required
 def send_chat_message(request, room_id):
+    """API endpoint to send chat message with validation"""
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         if request.user.profile.user_type != 'admin' and room.user != request.user:
@@ -737,6 +804,7 @@ def send_chat_message(request, room_id):
 
 @login_required
 def get_chat_messages(request, room_id):
+    """API endpoint to fetch new chat messages for real-time updates"""
     room = get_object_or_404(ChatRoom, id=room_id)
     last_id = request.GET.get('last_id', 0)
     messages = room.messages.filter(id__gt=last_id)
@@ -758,6 +826,7 @@ def get_chat_messages(request, room_id):
 
 @login_required
 def close_chat(request, room_id):
+    """API endpoint to close chat room (admin only)"""
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         if request.user.profile.user_type != 'admin':
@@ -771,12 +840,14 @@ def close_chat(request, room_id):
 # ==================== DRIVER MODULE VIEWS ====================
 
 def driver_login_page(request):
+    """Render driver login page or redirect if already authenticated"""
     if request.user.is_authenticated and hasattr(request.user, 'driver_profile'):
         return redirect('driver_dashboard')
     return render(request, 'app1/driver/driver_login.html')
 
 @require_http_methods(["POST"])
 def driver_login(request):
+    """Handle driver authentication with approval status check"""
     username = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     user = authenticate(request, username=username, password=password)
@@ -892,6 +963,7 @@ def driver_profile(request):
 
 @login_required
 def trip_detail(request, trip_id):
+    """Display detailed trip information with stop sequence"""
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -903,6 +975,7 @@ def trip_detail(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def start_trip(request, trip_id):
+    """API endpoint to start a pending trip"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
@@ -916,6 +989,7 @@ def start_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def complete_trip(request, trip_id):
+    """API endpoint to mark a trip as completed"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
@@ -930,6 +1004,7 @@ def complete_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def update_stop_status(request, stop_id):
+    """API endpoint to update stop arrival/departure status"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     stop = get_object_or_404(TripStop, id=stop_id)
@@ -950,6 +1025,7 @@ def update_stop_status(request, stop_id):
 
 @login_required
 def driver_logout(request):
+    """Handle driver logout with session cleanup"""
     logout(request)
     request.session.flush()
     messages.success(request, 'Logged out successfully.')
