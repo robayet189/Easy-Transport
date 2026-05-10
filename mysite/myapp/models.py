@@ -427,4 +427,27 @@ class VehicleIssue(models.Model):
     is_resolved = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"Issue by {self.driver.user.get_full_name()} - {self.reported_at}"
+        return f"Issue by {self.driver.user.get_full_name()} - {self.reported_at}"  
+    class Alert(models.Model):
+    """
+    Emergency alert system for users and drivers
+    CHANGE REASON: Enable real-time emergency notification system
+    """
+    ALERT_TYPES = [
+        ('emergency', 'Emergency'),
+        ('vehicle_issue', 'Vehicle Issue'),
+        ('route_change', 'Route Change'),
+        ('general', 'General'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, null=True, blank=True)
+    alert_type = models.CharField(max_length=20, choices=ALERT_TYPES)
+    message = models.TextField()
+    location = models.CharField(max_length=255, blank=True)
+    is_resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.get_alert_type_display()} - {self.created_at}"
