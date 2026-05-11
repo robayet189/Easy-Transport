@@ -648,113 +648,71 @@ def admin_get_schedule(request, schedule_id):
 def admin_add_schedule(request):
     """
     Add new schedule via API
-    CRITICAL FIX: Create Trip for driver dashboard visibility when driver is assigned
-    Driver dashboard queries Trip model, not Schedule - so Trip MUST be created
-    Also updates driver's assigned_route and assigned_bus for fallback display
+    CRITICAL FIX: Always create Trip when driver is assigned
+    Driver dashboard queries Trip model, not Schedule model
+    Without Trip record, driver sees nothing on dashboard
     """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             route = get_object_or_404(Route, id=data.get('route'))
             bus = get_object_or_404(Bus, id=data.get('bus'))
-
-            travel_date = datetime.strptime(
-                data.get('travel_date'), '%Y-%m-%d'
-            ).date()
-            departure_time = datetime.strptime(
-                data.get('departure_time'), '%H:%M'
-            ).time()
-
-            # Check for duplicate schedule with same route, date, and time
-            if Schedule.objects.filter(
-                route=route,
-                travel_date=travel_date,
-                departure_time=departure_time
-            ).exists():
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Schedule already exists for this route at this time'
-                })
-
-            # Auto-fill available seats from bus capacity if not provided
+            
+            travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
+            departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
+            
+            # Check for duplicate schedule
+            if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
+                return JsonResponse({'success': False, 'message': 'Schedule already exists for this route at this time'})
+            
             available_seats = data.get('available_seats') or bus.capacity
-
-            # Create the Schedule record
+            
+            # Create Schedule
             schedule = Schedule.objects.create(
                 route=route,
                 bus=bus,
                 travel_date=travel_date,
                 departure_time=departure_time,
-                arrival_time=datetime.strptime(
-                    data.get('arrival_time'), '%H:%M'
-                ).time() if data.get('arrival_time') else None,
+                arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None,
                 fare=float(data.get('fare', 40)),
                 available_seats=available_seats,
                 is_active=data.get('is_active', True)
             )
-
-            # CRITICAL FIX: Create Trip for driver dashboard AND update driver assignment
-            # Reason: Driver dashboard queries Trip model, not Schedule model
-            # Without Trip record, driver sees nothing on dashboard
+            
+            # CRITICAL FIX: Create Trip for driver dashboard
             driver_id = data.get('driver')
             trip_created = False
             if driver_id:
                 try:
                     driver = Driver.objects.get(id=driver_id)
-
-                    # Update driver's assigned_route and assigned_bus for fallback display
-                    # This ensures driver.route.code and driver.bus.bus_number work in template
+                    
+                    # Update driver's assignment
                     driver.assigned_route = route
                     driver.assigned_bus = bus
                     driver.save()
-
-                    # Create Trip record - THIS IS WHAT DRIVER DASHBOARD QUERIES
-                    trip = Trip.objects.create(
+                    
+                    # Create Trip record
+                    Trip.objects.create(
                         driver=driver,
                         route=route,
                         bus=bus,
                         travel_date=travel_date,
                         departure_time=departure_time,
-                        arrival_time=datetime.strptime(
-                            data.get('arrival_time'), '%H:%M'
-                        ).time() if data.get('arrival_time') else None,
+                        arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None,
                         status='pending'
                     )
                     trip_created = True
-                    print(
-                        f"SUCCESS: Trip created for Driver ID={driver_id} "
-                        f"on {travel_date} at {departure_time}"
-                    )
-                    print(
-                        f"  Trip ID={trip.id}, Route={route.code}, "
-                        f"Bus={bus.bus_number}"
-                    )
                 except Driver.DoesNotExist:
-                    print(
-                        f"WARNING: Driver ID={driver_id} not found in database"
-                    )
-                except Exception as e:
-                    print(
-                        f"ERROR creating Trip for Driver ID={driver_id}: {str(e)}"
-                    )
-            else:
-                print("INFO: No driver assigned to this schedule")
-
-            message = 'Schedule added successfully'
-            if trip_created:
-                message += ' - Driver trip created!'
-
+                    pass
+            
             return JsonResponse({
                 'success': True,
-                'message': message,
-                'schedule_id': schedule.id,
-                'trip_created': trip_created
+                'message': 'Schedule added successfully' + (' - Driver trip created!' if trip_created else ''),
+                'schedule_id': schedule.id
             })
         except Exception as e:
-            print(f"CRITICAL ERROR in admin_add_schedule: {str(e)}")
             return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
-
 
 @login_required
 @user_passes_test(is_admin)
