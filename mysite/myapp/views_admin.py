@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import UserProfile, Route, Bus, Schedule, Booking, Driver, Trip, Alert
+from .models import UserProfile, Route, Bus, Schedule, Booking, Driver, Trip, Alert, Notification
 from django.contrib.auth.models import User
 import json
 
@@ -207,14 +207,62 @@ def admin_revenue(request):
 @user_passes_test(is_admin)
 def admin_alerts(request):
     """Render alerts management page"""
-    return render(request, 'app1/admin/admin_alerts.html', {'active': 'alerts'})
+    recent_alerts = Alert.objects.filter(is_resolved=False).order_by('-created_at')[:20]
+    context = {'active': 'alerts', 'recent_alerts': recent_alerts}
+    return render(request, 'app1/admin/admin_alerts.html', context)
 
 
 @login_required
 @user_passes_test(is_admin)
 def admin_notifications(request):
-    """Render notifications management page"""
-    return render(request, 'app1/admin/admin_notifications.html', {'active': 'notifications'})
+    """
+    Render admin notifications page with real data from database
+    CHANGE REASON: Show actual notifications from Notification, Booking, Alert, and Trip models
+    """
+    # Get filter type from URL
+    filter_type = request.GET.get('type', 'all')
+    search_query = request.GET.get('search', '')
+
+    # Get all notifications from database
+    notifications = Notification.objects.all().select_related('related_user', 'related_driver')
+
+    # Get recent bookings for sidebar
+    recent_bookings = Booking.objects.select_related('user', 'schedule__route').order_by('-booking_date')[:10]
+
+    # Get recent unresolved alerts
+    recent_alerts = Alert.objects.filter(is_resolved=False).order_by('-created_at')[:10]
+
+    # Get ongoing trips
+    ongoing_trips = Trip.objects.filter(status='ongoing').select_related('driver', 'route', 'bus')[:10]
+
+    # Apply filters
+    if filter_type != 'all':
+        notifications = notifications.filter(type=filter_type)
+    if search_query:
+        notifications = notifications.filter(
+            Q(title__icontains=search_query) | Q(message__icontains=search_query)
+        )
+
+    # Calculate stats
+    total_notifications = Notification.objects.count()
+    unread_count = Notification.objects.filter(is_read=False).count()
+    emergency_count = Notification.objects.filter(type='emergency', is_resolved=False).count()
+    resolved_count = Notification.objects.filter(is_resolved=True).count()
+
+    context = {
+        'active': 'notifications',
+        'notifications': notifications[:50],
+        'recent_bookings': recent_bookings,
+        'recent_alerts': recent_alerts,
+        'ongoing_trips': ongoing_trips,
+        'total_notifications': total_notifications,
+        'unread_count': unread_count,
+        'emergency_count': emergency_count,
+        'resolved_count': resolved_count,
+        'filter_type': filter_type,
+        'search_query': search_query,
+    }
+    return render(request, 'app1/admin/admin_notifications.html', context)
 
 
 # ==================== API ENDPOINTS ====================
@@ -400,7 +448,7 @@ def admin_add_schedule(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            
+
             # Debug: Print all received data
             print("=" * 60)
             print("ADMIN ADD SCHEDULE - RECEIVED DATA:")
@@ -409,23 +457,19 @@ def admin_add_schedule(request):
             print(f"  driver: {data.get('driver')} (type: {type(data.get('driver')).__name__})")
             print(f"  travel_date: {data.get('travel_date')}")
             print(f"  departure_time: {data.get('departure_time')}")
-            print(f"  arrival_time: {data.get('arrival_time')}")
-            print(f"  fare: {data.get('fare')}")
-            print(f"  available_seats: {data.get('available_seats')}")
-            print(f"  is_active: {data.get('is_active')}")
             print("=" * 60)
-            
+
             route = get_object_or_404(Route, id=data.get('route'))
             bus = get_object_or_404(Bus, id=data.get('bus'))
             travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
             departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
-            
+
             # Check for duplicate
             if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
                 return JsonResponse({'success': False, 'message': 'Schedule already exists for this route at this time'})
-            
+
             available_seats = data.get('available_seats') or bus.capacity
-            
+
             # Create Schedule
             schedule = Schedule.objects.create(
                 route=route, bus=bus, travel_date=travel_date,
@@ -435,23 +479,29 @@ def admin_add_schedule(request):
                 is_active=data.get('is_active', True)
             )
             print(f"✅ Schedule created: ID={schedule.id}")
-            
+
+            # Create Notification for this schedule
+            Notification.objects.create(
+                type='schedule',
+                title='New Schedule Created',
+                message=f'New schedule added: Route {route.code} ({route.start} → {route.end}) on {travel_date} at {departure_time}. Bus: {bus.bus_number}.',
+                is_read=False
+            )
+
             # CRITICAL FIX: Create Trip for driver dashboard
             driver_id = data.get('driver')
             trip_created = False
-            
-            # Handle both string and integer driver IDs
+
             if driver_id and str(driver_id).strip() and str(driver_id) != 'null' and str(driver_id) != 'undefined':
                 try:
-                    driver_id = int(driver_id)  # Convert to integer
+                    driver_id = int(driver_id)
                     driver = Driver.objects.get(id=driver_id)
-                    
+
                     # Update driver's assignment
                     driver.assigned_route = route
                     driver.assigned_bus = bus
                     driver.save()
-                    print(f"✅ Driver {driver.user.get_full_name()} (ID={driver.id}) assigned to Route {route.code}, Bus {bus.bus_number}")
-                    
+
                     # Create Trip record
                     trip = Trip.objects.create(
                         driver=driver, route=route, bus=bus,
@@ -460,20 +510,27 @@ def admin_add_schedule(request):
                         status='pending'
                     )
                     trip_created = True
-                    print(f"✅ TRIP CREATED: Trip ID={trip.id}, Driver={driver.user.get_full_name()}, Route={route.code}, Date={travel_date}, Time={departure_time}")
+                    print(f"✅ TRIP CREATED: Trip ID={trip.id}, Driver={driver.user.get_full_name()}, Route={route.code}")
+
+                    # Create Notification for driver assignment
+                    Notification.objects.create(
+                        type='driver',
+                        title='Driver Assigned to Trip',
+                        message=f'Driver {driver.user.get_full_name()} assigned to Route {route.code} on {travel_date}.',
+                        related_driver=driver,
+                        is_read=False
+                    )
                 except Driver.DoesNotExist:
-                    print(f"❌ Driver ID={driver_id} not found in database")
-                except ValueError:
-                    print(f"❌ Invalid driver ID format: {driver_id}")
+                    print(f"❌ Driver ID={driver_id} not found")
                 except Exception as e:
                     print(f"❌ Error creating trip: {str(e)}")
             else:
-                print("ℹ️ No driver assigned - Trip not created")
-            
+                print("ℹ️ No driver assigned")
+
             message = 'Schedule added successfully'
             if trip_created:
                 message += ' - Driver trip created! Driver dashboard will now show this trip.'
-            
+
             return JsonResponse({'success': True, 'message': message, 'schedule_id': schedule.id, 'trip_created': trip_created})
         except Exception as e:
             print(f"❌ ERROR in admin_add_schedule: {str(e)}")
@@ -540,6 +597,7 @@ def send_notification_api(request):
             message = data.get('message')
             if not title or not message:
                 return JsonResponse({'success': False, 'message': 'Title and message are required'})
+            Notification.objects.create(type='system', title=title, message=message)
             return JsonResponse({'success': True, 'message': 'Notification sent successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
@@ -555,6 +613,7 @@ def resolve_alert_api(request, alert_id):
             alert = get_object_or_404(Alert, id=alert_id)
             alert.is_resolved = True
             alert.save()
+            Notification.objects.create(type='system', title='Alert Resolved', message=f'Alert "{alert.message[:50]}..." has been resolved.')
             return JsonResponse({'success': True, 'message': 'Alert resolved successfully'})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
