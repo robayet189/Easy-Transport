@@ -867,7 +867,74 @@ def driver_login(request):
     else:
         return JsonResponse({'success': False, 'message': 'Invalid username or password'}, status=401)
 
+# ==================== DRIVER EMERGENCY ALERT & PASSENGER API ====================
 
+@login_required
+@require_http_methods(["POST"])
+def driver_send_alert(request):
+    """API: Driver sends emergency alert - saves to database + creates notification"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        message = data.get('message', 'Emergency alert from driver')
+        
+        driver = request.user.driver_profile
+        
+        # Create Alert record in database
+        alert = Alert.objects.create(
+            driver=driver,
+            alert_type='emergency',
+            message=f"🚨 {driver.user.get_full_name()}: {message}",
+            location='Current trip location'
+        )
+        
+        # Also create notification for admin
+        from .models import Notification
+        Notification.objects.create(
+            type='emergency',
+            title=f'Emergency Alert - {driver.user.get_full_name()}',
+            message=message,
+            related_driver=driver,
+            is_read=False
+        )
+        
+        return JsonResponse({'success': True, 'message': 'Emergency alert sent to admin!', 'alert_id': alert.id})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+def driver_get_passengers(request):
+    """API: Get real passenger list for driver's today trips from Booking model"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'passengers': []})
+    
+    driver = request.user.driver_profile
+    today = timezone.now().date()
+    
+    # Get today's trips for this driver
+    trips = Trip.objects.filter(driver=driver, travel_date=today)
+    
+    passengers = []
+    for trip in trips:
+        schedule = Schedule.objects.filter(
+            route=trip.route, travel_date=trip.travel_date,
+            departure_time=trip.departure_time
+        ).first()
+        if schedule:
+            bookings = Booking.objects.filter(schedule=schedule, status='confirmed').select_related('user')
+            for b in bookings:
+                passengers.append({
+                    'seat': b.seat_number,
+                    'name': b.passenger_name,
+                    'type': b.user.profile.user_type if hasattr(b.user, 'profile') else 'Student',
+                    'id': b.user.profile.institution_id if hasattr(b.user, 'profile') else b.user.username,
+                    'stop': schedule.route.end,
+                })
+    
+    return JsonResponse({'success': True, 'passengers': passengers})
 @login_required
 def driver_dashboard(request):
     """
