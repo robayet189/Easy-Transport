@@ -31,8 +31,8 @@
 <div class="filter-bar">
     <span class="filter-label">Filter:</span>
     <div class="filter-tabs">
-        <a href="?type=all" class="filter-tab {% if filter_type == 'all' %}active{% endif %}">All</a>
-        <a href="?type=emergency" class="filter-tab {% if filter_type == 'emergency' %}active{% endif %}" style="color:#ff4757;">🆘 Emergency</a>
+        <a href="?type=all" class="filter-tab {% if filter_type == 'all' %}active{% endif %}">All ({{ total_notifications|default:0 }})</a>
+        <a href="?type=emergency" class="filter-tab {% if filter_type == 'emergency' %}active{% endif %}" style="color:#ff4757;">🆘 Emergency ({{ emergency_count|default:0 }})</a>
         <a href="?type=booking" class="filter-tab {% if filter_type == 'booking' %}active{% endif %}">🎫 Booking</a>
         <a href="?type=payment" class="filter-tab {% if filter_type == 'payment' %}active{% endif %}">💳 Payment</a>
         <a href="?type=driver" class="filter-tab {% if filter_type == 'driver' %}active{% endif %}">🚗 Driver</a>
@@ -46,12 +46,23 @@
 </div>
 
 <!-- Notifications List -->
-<div class="notif-list">
+<div class="notif-list" id="notif-list">
     {% if notifications %}
         {% for notif in notifications %}
         <div class="notif-card {% if not notif.is_read %}unread{% endif %}">
-            <div class="notif-icon {% if notif.type == 'emergency' %}red{% elif notif.type == 'booking' %}blue{% elif notif.type == 'payment' %}gold{% elif notif.type == 'driver' %}orange{% elif notif.type == 'schedule' %}green{% else %}purple{% endif %}">
-                {% if notif.type == 'emergency' %}🆘{% elif notif.type == 'booking' %}🎫{% elif notif.type == 'payment' %}💳{% elif notif.type == 'driver' %}🚗{% elif notif.type == 'schedule' %}📅{% else %}🔔{% endif %}
+            <div class="notif-icon 
+                {% if notif.type == 'emergency' %}red
+                {% elif notif.type == 'booking' %}blue
+                {% elif notif.type == 'payment' %}gold
+                {% elif notif.type == 'driver' %}orange
+                {% elif notif.type == 'schedule' %}green
+                {% else %}purple{% endif %}">
+                {% if notif.type == 'emergency' %}🆘
+                {% elif notif.type == 'booking' %}🎫
+                {% elif notif.type == 'payment' %}💳
+                {% elif notif.type == 'driver' %}🚗
+                {% elif notif.type == 'schedule' %}📅
+                {% else %}🔔{% endif %}
             </div>
             <div class="notif-body">
                 <div class="notif-header">
@@ -63,9 +74,6 @@
                     <span class="notif-time">🕐 {{ notif.created_at|timesince }} ago</span>
                     {% if notif.related_user %}
                     <span class="notif-user">👤 {{ notif.related_user.get_full_name|default:notif.related_user.username }}</span>
-                    {% endif %}
-                    {% if notif.related_driver %}
-                    <span class="notif-user">🚌 {{ notif.related_driver.user.get_full_name }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -83,34 +91,37 @@
     {% endif %}
 </div>
 
-<!-- Recent Activity Section -->
+<!-- Recent Activity -->
 <div class="two-col" style="margin-top:24px;">
     <!-- Recent Bookings -->
     <div class="card">
-        <div class="card-title">Recent Bookings</div>
+        <div class="card-title"><span class="dot"></span>Recent Bookings</div>
         {% if recent_bookings %}
             {% for booking in recent_bookings %}
             <div style="padding:8px 0;border-bottom:1px solid var(--border);">
                 <div style="font-size:13px;font-weight:500;">{{ booking.passenger_name }} - {{ booking.schedule.route.code }}</div>
-                <div style="font-size:11px;color:var(--text-muted);">{{ booking.booking_date|date:"M d, H:i" }} | <span class="badge badge-{% if booking.status == 'approved' %}green{% elif booking.status == 'pending' %}gold{% else %}red{% endif %}">{{ booking.get_status_display }}</span></div>
+                <div style="font-size:11px;color:var(--text-muted);">{{ booking.booking_date|date:"M d, H:i" }} | 
+                    <span class="badge badge-{% if booking.status == 'approved' %}green{% elif booking.status == 'pending' %}gold{% else %}red{% endif %}">{{ booking.get_status_display }}</span>
+                </div>
             </div>
             {% endfor %}
         {% else %}
             <p style="color:var(--text-muted);text-align:center;padding:20px;">No recent bookings</p>
         {% endif %}
     </div>
-    <!-- Recent Alerts -->
+    
+    <!-- Active Alerts -->
     <div class="card">
-        <div class="card-title">Active Alerts</div>
+        <div class="card-title"><span class="dot"></span>Active Alerts</div>
         {% if recent_alerts %}
             {% for alert in recent_alerts %}
             <div style="padding:8px 0;border-bottom:1px solid var(--border);">
-                <div style="font-size:13px;font-weight:500;">{{ alert.get_alert_type_display }} - {{ alert.message|truncatechars:50 }}</div>
+                <div style="font-size:13px;font-weight:500;">{{ alert.get_alert_type_display }}: {{ alert.message|truncatechars:60 }}</div>
                 <div style="font-size:11px;color:var(--text-muted);">{{ alert.created_at|date:"M d, H:i" }}</div>
             </div>
             {% endfor %}
         {% else %}
-            <p style="color:var(--text-muted);text-align:center;padding:20px;">🟢 All clear!</p>
+            <p style="color:var(--text-muted);text-align:center;padding:20px;">🟢 All clear! No active alerts.</p>
         {% endif %}
     </div>
 </div>
@@ -122,7 +133,10 @@
 .stat-label { font-size:13px; color:var(--text-muted); margin-bottom:6px; }
 .stat-value { font-size:28px; font-weight:700; }
 .card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:20px; overflow:hidden; }
-.card-title { font-size:16px; font-weight:600; margin-bottom:16px; }
+.card-title { font-size:16px; font-weight:600; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.card-title .dot { width:6px; height:6px; border-radius:50%; background:var(--accent-orange); }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
 .filter-bar { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; }
 .filter-label { font-size:12px; color:var(--text-muted); font-weight:500; }
 .filter-tabs { display:flex; gap:4px; flex:1; flex-wrap:wrap; }
@@ -132,6 +146,7 @@
 .search-box { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:6px 12px; width:220px; }
 .search-box input { background:none; border:none; outline:none; color:var(--text); font-size:13px; width:100%; }
 .search-icon { color:var(--text-muted); font-size:14px; }
+
 .notif-list { display:flex; flex-direction:column; gap:10px; }
 .notif-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; display:flex; align-items:flex-start; gap:14px; position:relative; transition:all 0.18s; }
 .notif-card:hover { border-color:var(--text-muted); }
@@ -158,22 +173,23 @@
 .notif-time { font-size:11px; color:var(--text-dim); }
 .notif-user { font-size:11px; color:var(--text-dim); }
 .unread-dot { width:7px; height:7px; background:var(--accent-red); border-radius:50%; position:absolute; top:16px; right:16px; }
-.two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
 .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
 .badge-green { background:rgba(46,213,115,0.12); color:#2ed573; }
 .badge-gold { background:rgba(245,166,35,0.12); color:#f5a623; }
 .badge-red { background:rgba(255,71,87,0.12); color:#ff4757; }
+
 @media (max-width:768px) { .two-col { grid-template-columns:1fr; } .stats-grid { grid-template-columns:repeat(2,1fr); } }
 </style>
 
 <script>
 function searchNotifs() {
-    const query = document.getElementById('searchInput').value.trim();
-    const currentType = '{{ filter_type }}';
-    let url = '?';
+    var query = document.getElementById('searchInput').value.trim();
+    var currentType = '{{ filter_type }}';
+    var url = window.location.pathname + '?';
     if (currentType && currentType !== 'all') url += 'type=' + currentType + '&';
     if (query) url += 'search=' + encodeURIComponent(query);
-    window.location.href = url || window.location.pathname;
+    window.location.href = url;
 }
 </script>
 
