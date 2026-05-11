@@ -13,9 +13,7 @@
             --red: #ff4757; --orange: #ff6b35; --gold: #f5a623;
             --green: #2ed573; --blue: #1e90ff; --text: #ffffff;
             --muted: #9090b0; --dim: #50507a; --border: rgba(255,255,255,0.08);
-            --input-bg: #0f0f20; --input-border: rgba(255,255,255,0.1);
             --nav-bg: rgba(11,11,20,0.92); --toast-bg: #1a1a30;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --glow: rgba(255,71,87,0.3); --sidebar-w: 240px; --nav-h: 72px;
         }
         [data-theme="light"] {
@@ -23,7 +21,6 @@
             --red: #e63946; --orange: #f4a261; --gold: #d97706;
             --green: #22c55e; --blue: #3b82f6; --text: #1e293b;
             --muted: #5b6e8c; --dim: #8c9bb0; --border: rgba(0,0,0,0.08);
-            --input-bg: #ffffff; --input-border: rgba(0,0,0,0.12);
             --nav-bg: rgba(255,255,255,0.92); --toast-bg: #ffffff;
             --glow: rgba(230,57,70,0.2);
         }
@@ -41,17 +38,11 @@
             pointer-events: none; z-index: 0; animation: float 20s ease-in-out infinite;
         }
         @keyframes float { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(20px, 20px); } }
-        body::after {
-            content: ''; position: fixed; inset: 0;
-            background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-            background-size: 60px 60px; pointer-events: none; z-index: 0;
-        }
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 24px; height: var(--nav-h); background: var(--nav-bg);
-            backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); transition: var(--transition);
+            backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); transition: all 0.3s;
         }
         .logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
         .logo-icon-custom { width: 75px; height: 65px; background: transparent; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
@@ -60,15 +51,14 @@
         .nav-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .nav-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--orange), var(--gold)); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: #fff; cursor: pointer; }
-        .theme-toggle { width: 48px; height: 48px; border-radius: 999px; background: var(--card2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: all 0.4s; position: relative; overflow: hidden; }
+        .nav-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--orange), var(--gold)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff; cursor: pointer; }
+        .theme-toggle { width: 48px; height: 48px; border-radius: 999px; background: var(--card2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: all 0.4s; }
         .theme-toggle:hover { transform: scale(1.05); border-color: var(--red); box-shadow: 0 0 12px var(--glow); }
         .layout { display: flex; margin-top: var(--nav-h); min-height: calc(100vh - var(--nav-h)); }
         .sidebar {
             position: fixed; top: var(--nav-h); left: 0; bottom: 0; width: var(--sidebar-w);
             background: var(--card); border-right: 1px solid var(--border);
-            padding: 24px 0; display: flex; flex-direction: column; overflow-y: auto;
-            z-index: 90; transition: var(--transition);
+            padding: 24px 0; display: flex; flex-direction: column; overflow-y: auto; z-index: 90;
         }
         .sidebar-section { padding: 0 12px; margin-bottom: 8px; }
         .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; padding: 0 12px; margin-bottom: 6px; margin-top: 16px; }
@@ -83,7 +73,7 @@
         .driver-id { font-size: 11px; color: var(--muted); margin-top: 2px; }
         .driver-meta { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
         .driver-tag { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255,165,35,0.15); color: var(--gold); }
-        .main { margin-left: var(--sidebar-w); flex: 1; padding: 28px; min-height: calc(100vh - var(--nav-h)); transition: margin-left 0.3s; }
+        .main { margin-left: var(--sidebar-w); flex: 1; padding: 28px; min-height: calc(100vh - var(--nav-h)); }
         .section { display: none; animation: fadeUp 0.4s ease forwards; }
         .section.active { display: block; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -92,9 +82,7 @@
         .page-subtitle { font-size: 14px; color: var(--muted); margin-top: 4px; }
         .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
         .btn-primary { background: linear-gradient(135deg, var(--red), var(--orange)); color: #fff; box-shadow: 0 4px 16px rgba(255,71,87,0.3); }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,71,87,0.4); }
         .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
-        .btn-outline:hover { background: rgba(255,255,255,0.05); }
         .btn-green { background: rgba(46,213,115,0.15); color: var(--green); border: 1px solid rgba(46,213,115,0.3); }
         .btn-red { background: rgba(255,71,87,0.12); color: var(--red); border: 1px solid rgba(255,71,87,0.25); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -163,7 +151,26 @@
         .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
         .field-group label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
         .field-value { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--text); }
-        .toast { position: fixed; bottom: 24px; right: 24px; z-index: 999; background: var(--toast-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); backdrop-filter: blur(16px); }
+        .chat-box { height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; padding: 10px; }
+        .chat-msg { display: flex; gap: 10px; }
+        .chat-msg.sent { flex-direction: row-reverse; }
+        .chat-avatar-small { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+        .chat-bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+        .chat-msg.recv .chat-bubble { background: rgba(255,255,255,0.06); color: var(--text); }
+        .chat-msg.sent .chat-bubble { background: rgba(255,107,53,0.15); color: var(--text); }
+        .chat-time { font-size: 10px; color: var(--muted); margin-top: 4px; }
+        .chat-input-row { display: flex; gap: 10px; }
+        .chat-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; }
+        .chat-input:focus { border-color: var(--orange); }
+        .emergency-btn {
+            width: 100%; padding: 20px; border-radius: 14px;
+            background: rgba(255,71,87,0.08); border: 2px solid rgba(255,71,87,0.3);
+            color: var(--red); font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center;
+            justify-content: center; gap: 12px; margin-bottom: 20px;
+        }
+        .emergency-btn:hover { background: rgba(255,71,87,0.15); border-color: var(--red); box-shadow: 0 0 24px rgba(255,71,87,0.2); }
+        .toast { position: fixed; bottom: 24px; right: 24px; z-index: 999; background: var(--toast-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(80px); opacity: 0; transition: all 0.3s; backdrop-filter: blur(16px); }
         .toast.show { transform: translateY(0); opacity: 1; }
         .toast-icon { font-size: 20px; }
         .toast.error { border-color: rgba(255,71,87,0.3); color: var(--red); }
@@ -171,7 +178,6 @@
             .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; }
-            .page-header { flex-direction: column; align-items: flex-start; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .field-row { grid-template-columns: 1fr; }
             .two-col { grid-template-columns: 1fr; }
@@ -186,21 +192,19 @@
 
 <nav>
     <a href="{% url 'homepage' %}" class="logo">
-        <div class="logo-icon-custom">
-            <img style="width: 100%; height: 100%" src="{% static 'app1/logo.png' %}" alt="Easy Transport Logo">
-        </div>
+        <div class="logo-icon-custom"><img style="width:100%;height:100%" src="{% static 'app1/logo.png' %}" alt="Logo"></div>
         <span class="logo-text">Easy Transport</span>
     </a>
     <div class="nav-right">
         <div class="nav-status"><div class="status-dot"></div><span id="dutyStatus">On Duty</span></div>
-        <div class="nav-avatar" onclick="navigate('profile')" title="Profile">{{ request.user.first_name|default:"D"|first|upper }}</div>
-        <div class="theme-toggle" id="themeToggle"><span class="toggle-icon" id="toggleIcon">🌙</span></div>
+        <div class="nav-avatar" onclick="navigate('profile')">{{ request.user.first_name|default:"D"|first|upper }}</div>
+        <div class="theme-toggle" id="themeToggle"><span id="toggleIcon">🌙</span></div>
     </div>
 </nav>
 
 <div class="layout">
     <aside class="sidebar" id="sidebar">
-        <div style="padding: 0 12px; margin-bottom: 16px;">
+        <div style="padding:0 12px;margin-bottom:16px;">
             <div class="sidebar-driver-card">
                 <div class="driver-name">{{ request.user.get_full_name|default:request.user.username }}</div>
                 <div class="driver-id">Driver ID: {{ driver.license_number|default:"DRV-XXXX" }}</div>
@@ -212,109 +216,62 @@
         </div>
         <div class="sidebar-label">Main</div>
         <div class="sidebar-section">
-            <button class="nav-item active" onclick="navigate('home')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Dashboard
-            </button>
-            <button class="nav-item" onclick="navigate('route')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg> My Route
-            </button>
-            <button class="nav-item" onclick="navigate('schedule')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule
-            </button>
-            <button class="nav-item" onclick="navigate('passengers')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> Passengers <span class="nav-badge" id="passengerCount">{{ passenger_count|default:0 }}</span>
-            </button>
+            <button class="nav-item active" onclick="navigate('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Dashboard</button>
+            <button class="nav-item" onclick="navigate('route')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg> My Route</button>
+            <button class="nav-item" onclick="navigate('schedule')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Schedule</button>
+            <button class="nav-item" onclick="navigate('passengers')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> Passengers <span class="nav-badge" id="passengerCount">{{ passenger_count|default:0 }}</span></button>
         </div>
         <div class="sidebar-label">Trip</div>
         <div class="sidebar-section">
-            <button class="nav-item" onclick="navigate('trip')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Trip Status
-            </button>
-            <button class="nav-item" onclick="navigate('earnings')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Earnings
-            </button>
+            <button class="nav-item" onclick="navigate('trip')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Trip Status</button>
+            <button class="nav-item" onclick="navigate('earnings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Earnings</button>
+        </div>
+        <div class="sidebar-label">Communication</div>
+        <div class="sidebar-section">
+            <button class="nav-item" onclick="navigate('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat <span class="nav-badge" id="chatBadge">0</span></button>
+            <button class="nav-item" onclick="navigate('alerts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Alerts</button>
         </div>
         <div class="sidebar-divider"></div>
         <div class="sidebar-section">
-            <button class="nav-item" onclick="navigate('profile')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Profile
-            </button>
-            <button class="nav-item" onclick="window.location.href=`{% url 'driver_logout' %}`">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout
-            </button>
+            <button class="nav-item" onclick="navigate('profile')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Profile</button>
+            <button class="nav-item" onclick="window.location.href=`{% url 'driver_logout' %}`"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</button>
         </div>
     </aside>
 
     <main class="main">
         <!-- HOME / DASHBOARD SECTION -->
         <section id="sec-home" class="section active">
-            <div class="page-header">
-                <div>
-                    <div class="page-title">Good Morning, {{ request.user.first_name|default:"Driver" }} 👋</div>
-                    <div class="page-subtitle" id="currentDate">Route {{ driver.route.code|default:"XX" }}</div>
-                </div>
-                <button class="btn btn-primary" onclick="navigate('trip')">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="10 8 16 12 10 16 10 8"/></svg> Start Trip
-                </button>
-            </div>
+            <div class="page-header"><div><div class="page-title">Good Morning, {{ request.user.first_name|default:"Driver" }} 👋</div><div class="page-subtitle" id="currentDate">Route {{ driver.route.code|default:"XX" }}</div></div><button class="btn btn-primary" onclick="navigate('trip')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="10 8 16 12 10 16 10 8"/></svg> Start Trip</button></div>
+            <!-- Stats Grid -->
             <div class="stats-grid">
-                <div class="stat-card green"><div class="stat-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-label">Passengers Today</div><div class="stat-value" id="passengerStat">{{ passenger_count|default:0 }}</div><div class="stat-sub">Capacity: {{ driver.bus.capacity|default:"40" }} seats</div></div>
-                <div class="stat-card orange"><div class="stat-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="stat-label">Trips Completed</div><div class="stat-value" id="tripsCompleted">{{ trips_completed|default:0 }}</div><div class="stat-sub">{{ upcoming_trips.count|default:0 }} more scheduled</div></div>
-                <div class="stat-card gold"><div class="stat-icon gold"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="stat-label">Today's Earnings</div><div class="stat-value" id="todayEarnings">৳{{ today_earnings|floatformat:0|default:0 }}</div></div>
+                <div class="stat-card green"><div class="stat-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-label">Passengers Today</div><div class="stat-value">{{ passenger_count|default:0 }}</div><div class="stat-sub">Capacity: {{ driver.bus.capacity|default:"40" }} seats</div></div>
+                <div class="stat-card orange"><div class="stat-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="stat-label">Trips Completed</div><div class="stat-value">{{ trips_completed|default:0 }}</div><div class="stat-sub">{{ upcoming_trips.count|default:0 }} more scheduled</div></div>
+                <div class="stat-card gold"><div class="stat-icon gold"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="stat-label">Today's Earnings</div><div class="stat-value">৳{{ today_earnings|floatformat:0|default:0 }}</div></div>
                 <div class="stat-card blue"><div class="stat-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-label">On-Time Rate</div><div class="stat-value">94%</div></div>
             </div>
+            <!-- Two Column Layout -->
             <div class="two-col">
                 <div>
                     <div class="trip-status-card">
-                        <div class="trip-status-header">
-                            <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;">Current Trip</div>
-                            {% if ongoing_trip %}<span class="trip-badge active">In Progress</span>{% else %}<span class="trip-badge idle">Idle – Not Started</span>{% endif %}
-                        </div>
-                        <div class="route-line">
-                            <div class="route-stop"><div class="route-stop-label">FROM</div><div class="route-stop-name">{{ driver.route.start|default:"Signboard" }}</div></div>
-                            <div class="route-connector"><div class="route-connector-line"><div class="route-dot"></div></div></div>
-                            <div class="route-stop" style="text-align:right;"><div class="route-stop-label">TO</div><div class="route-stop-name">{{ driver.route.end|default:"Mirpur 10" }}</div></div>
-                        </div>
-                        <div style="display:flex;gap:10px;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:18px;flex-wrap:wrap;">
-                            <span>🕐 Depart: {{ driver.departure_time|default:"8:00 AM" }}</span>
-                            <span>📍 Distance: {{ driver.route.distance_km|default:"35.0" }} km</span>
-                            <span>👥 {{ passenger_count|default:0 }} / {{ driver.bus.capacity|default:"30" }} seats</span>
-                        </div>
-                        <div class="trip-actions">
-                            {% if ongoing_trip %}<button class="btn btn-green" style="flex:1;" onclick="window.location.href=`{% url 'trip_detail' ongoing_trip.id %}`">▶ View Trip</button>{% else %}<button class="btn btn-green" style="flex:1;" onclick="navigate('trip')">▶ Start Trip</button>{% endif %}
-                            <button class="btn btn-outline" onclick="navigate('route')">View Route</button>
-                        </div>
+                        <div class="trip-status-header"><div style="font-weight:700;font-size:15px;">Current Trip</div>{% if ongoing_trip %}<span class="trip-badge active">In Progress</span>{% else %}<span class="trip-badge idle">Idle – Not Started</span>{% endif %}</div>
+                        <div class="route-line"><div class="route-stop"><div class="route-stop-label">FROM</div><div class="route-stop-name">{{ driver.route.start|default:"Signboard" }}</div></div><div class="route-connector"><div class="route-connector-line"><div class="route-dot"></div></div></div><div class="route-stop" style="text-align:right;"><div class="route-stop-label">TO</div><div class="route-stop-name">{{ driver.route.end|default:"Mirpur 10" }}</div></div></div>
+                        <div style="display:flex;gap:10px;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:18px;flex-wrap:wrap;"><span>🕐 Depart: {{ driver.departure_time|default:"8:00 AM" }}</span><span>📍 Distance: {{ driver.route.distance_km|default:"35.0" }} km</span><span>👥 {{ passenger_count|default:0 }} / {{ driver.bus.capacity|default:"30" }} seats</span></div>
+                        <div class="trip-actions"><button class="btn btn-green" style="flex:1;" onclick="navigate('trip')">▶ Start Trip</button><button class="btn btn-outline" onclick="navigate('route')">View Route</button></div>
                     </div>
-                    <div class="card">
-                        <div class="card-title"><span class="dot"></span>Today's Trips</div>
-                        {% if today_trips %}
-                            {% for trip in today_trips %}
-                            <div class="schedule-item">
-                                <div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div>
-                                <div class="schedule-dot-col"><div class="schedule-dot {% if trip.status == 'completed' %}done{% elif trip.status == 'ongoing' %}done{% else %}upcoming{% endif %}"></div>{% if not forloop.last %}<div class="schedule-line"></div>{% endif %}</div>
-                                <div class="schedule-info"><div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div><div class="schedule-detail"><span class="badge badge-{% if trip.status == 'completed' %}green{% elif trip.status == 'ongoing' %}blue{% else %}gold{% endif %}">{{ trip.get_status_display }}</span> · {{ trip.bus.bus_number }}</div></div>
-                            </div>
-                            {% endfor %}
-                        {% else %}<div style="text-align:center;color:var(--muted);padding:20px;">No trips scheduled for today</div>{% endif %}
+                    <!-- Today's Trips -->
+                    <div class="card"><div class="card-title"><span class="dot"></span>Today's Trips</div>
+                        {% if today_trips %}{% for trip in today_trips %}<div class="schedule-item"><div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div><div class="schedule-dot-col"><div class="schedule-dot {% if trip.status == 'completed' %}done{% elif trip.status == 'ongoing' %}done{% else %}upcoming{% endif %}"></div>{% if not forloop.last %}<div class="schedule-line"></div>{% endif %}</div><div class="schedule-info"><div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div><div class="schedule-detail"><span class="badge badge-{% if trip.status == 'completed' %}green{% elif trip.status == 'ongoing' %}blue{% else %}gold{% endif %}">{{ trip.get_status_display }}</span> · {{ trip.bus.bus_number }}</div></div></div>{% endfor %}{% else %}<div style="text-align:center;color:var(--muted);padding:20px;">No trips scheduled for today</div>{% endif %}
                     </div>
                 </div>
                 <div>
-                    <div class="card">
-                        <div class="card-title"><span class="dot"></span>Upcoming Trips</div>
-                        {% if upcoming_trips %}
-                            {% for trip in upcoming_trips %}
-                            <div class="schedule-item">
-                                <div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div>
-                                <div class="schedule-dot-col"><div class="schedule-dot upcoming"></div>{% if not forloop.last %}<div class="schedule-line"></div>{% endif %}</div>
-                                <div class="schedule-info"><div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div><div class="schedule-detail"><span class="badge badge-gold">Scheduled</span> · {{ trip.travel_date|date:"M d" }}</div></div>
-                            </div>
-                            {% endfor %}
-                        {% else %}<div style="text-align:center;color:var(--muted);padding:20px;">No upcoming trips</div>{% endif %}
+                    <!-- Upcoming Trips -->
+                    <div class="card"><div class="card-title"><span class="dot"></span>Upcoming Trips</div>
+                        {% if upcoming_trips %}{% for trip in upcoming_trips %}<div class="schedule-item"><div class="schedule-time">{{ trip.departure_time|time:"g:i A" }}</div><div class="schedule-dot-col"><div class="schedule-dot upcoming"></div>{% if not forloop.last %}<div class="schedule-line"></div>{% endif %}</div><div class="schedule-info"><div class="schedule-route">{{ trip.route.start }} → {{ trip.route.end }}</div><div class="schedule-detail"><span class="badge badge-gold">Scheduled</span> · {{ trip.travel_date|date:"M d" }}</div></div></div>{% endfor %}{% else %}<div style="text-align:center;color:var(--muted);padding:20px;">No upcoming trips</div>{% endif %}
                     </div>
-                    <div class="card">
-                        <div class="card-title"><span class="dot"></span>Route Alerts</div>
-                        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);"><div style="width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:6px;"></div><div><div style="font-size:13px;font-weight:500;color:var(--text);">Traffic on Progati Sarani</div><div style="font-size:11px;color:var(--muted);">Expect 10 min delay</div></div></div>
-                        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;"><div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:6px;"></div><div><div style="font-size:13px;font-weight:500;color:var(--text);">Route {{ driver.route.code|default:"J1" }} is clear</div><div style="font-size:11px;color:var(--muted);">Updated by admin</div></div></div>
+                    <!-- Route Alerts -->
+                    <div class="card"><div class="card-title"><span class="dot"></span>Route Alerts</div>
+                        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);"><div style="width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:6px;"></div><div><div style="font-size:13px;font-weight:500;">Traffic on Progati Sarani</div><div style="font-size:11px;color:var(--muted);">Expect 10 min delay · Admin notified</div></div></div>
+                        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;"><div style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;margin-top:6px;"></div><div><div style="font-size:13px;font-weight:500;">Route {{ driver.route.code|default:"J1" }} is clear</div><div style="font-size:11px;color:var(--muted);">Updated 5 mins ago by admin</div></div></div>
                     </div>
                 </div>
             </div>
@@ -329,11 +286,7 @@
         <!-- SCHEDULE SECTION -->
         <section id="sec-schedule" class="section">
             <div class="page-header"><div><div class="page-title">My Schedule</div><div class="page-subtitle">Today's and upcoming schedules</div></div></div>
-            {% if today_trips %}
-                {% for trip in today_trips %}
-                <div class="card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="font-size:16px;font-weight:600;">{{ trip.route.start }} → {{ trip.route.end }}</div><div style="color:var(--muted);">🕐 {{ trip.departure_time|time:"g:i A" }} | 📅 {{ trip.travel_date|date:"M d, Y" }}</div></div><span class="badge badge-{% if trip.status == 'pending' %}gold{% elif trip.status == 'ongoing' %}blue{% else %}green{% endif %}">{{ trip.get_status_display }}</span></div></div>
-                {% endfor %}
-            {% else %}<div class="card"><p style="text-align:center;color:var(--muted);">No schedules for today</p></div>{% endif %}
+            {% if today_trips %}{% for trip in today_trips %}<div class="card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="font-size:16px;font-weight:600;">{{ trip.route.start }} → {{ trip.route.end }}</div><div style="color:var(--muted);">🕐 {{ trip.departure_time|time:"g:i A" }} | 📅 {{ trip.travel_date|date:"M d, Y" }}</div></div><span class="badge badge-{% if trip.status == 'pending' %}gold{% elif trip.status == 'ongoing' %}blue{% else %}green{% endif %}">{{ trip.get_status_display }}</span></div></div>{% endfor %}{% else %}<div class="card"><p style="text-align:center;color:var(--muted);">No schedules for today</p></div>{% endif %}
         </section>
 
         <!-- PASSENGERS SECTION -->
@@ -346,45 +299,41 @@
         <section id="sec-trip" class="section">
             <div class="page-header"><div><div class="page-title">Trip Status</div><div class="page-subtitle">Current trip progress</div></div></div>
             {% if ongoing_trip %}
-                <div class="trip-status-card">
-                    <div class="trip-status-header"><div style="font-weight:700;">{{ ongoing_trip.route.start }} → {{ ongoing_trip.route.end }}</div><span class="trip-badge active">In Progress</span></div>
-                    <div style="margin-top:12px;"><p>🕐 Started: {{ ongoing_trip.departure_time|time:"g:i A" }}</p><p>📍 Route: {{ ongoing_trip.route.code }}</p><p>🚌 Bus: {{ ongoing_trip.bus.bus_number }}</p></div>
-                    <div class="trip-actions" style="margin-top:16px;"><button class="btn btn-green" onclick="completeTripAPI({{ ongoing_trip.id }})">✅ Complete Trip</button></div>
-                </div>
+                <div class="trip-status-card"><div class="trip-status-header"><div style="font-weight:700;">{{ ongoing_trip.route.start }} → {{ ongoing_trip.route.end }}</div><span class="trip-badge active">In Progress</span></div><div style="margin-top:12px;"><p>🕐 Started: {{ ongoing_trip.departure_time|time:"g:i A" }}</p><p>📍 Route: {{ ongoing_trip.route.code }}</p><p>🚌 Bus: {{ ongoing_trip.bus.bus_number }}</p></div><div class="trip-actions" style="margin-top:16px;"><button class="btn btn-green" onclick="completeTripAPI({{ ongoing_trip.id }})">✅ Complete Trip</button></div></div>
             {% elif today_trips %}
-                {% for trip in today_trips %}
-                <div class="card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="font-weight:600;">{{ trip.route.start }} → {{ trip.route.end }}</div><div style="color:var(--muted);">{{ trip.departure_time|time:"g:i A" }}</div></div><button class="btn btn-green" onclick="startTripAPI({{ trip.id }})">▶ Start Trip</button></div></div>
-                {% endfor %}
+                {% for trip in today_trips %}<div class="card" style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="font-weight:600;">{{ trip.route.start }} → {{ trip.route.end }}</div><div style="color:var(--muted);">{{ trip.departure_time|time:"g:i A" }}</div></div><button class="btn btn-green" onclick="startTripAPI({{ trip.id }})">▶ Start Trip</button></div></div>{% endfor %}
             {% else %}<div class="card"><p style="text-align:center;color:var(--muted);">No trips scheduled</p></div>{% endif %}
         </section>
 
         <!-- EARNINGS SECTION -->
         <section id="sec-earnings" class="section">
             <div class="page-header"><div><div class="page-title">Earnings</div><div class="page-subtitle">Today's earnings summary</div></div></div>
-            <div class="stats-grid">
-                <div class="stat-card gold"><div class="stat-label">Today's Earnings</div><div class="stat-value">৳{{ today_earnings|floatformat:0|default:0 }}</div></div>
-                <div class="stat-card green"><div class="stat-label">Trips Completed</div><div class="stat-value">{{ trips_completed|default:0 }}</div></div>
-                <div class="stat-card orange"><div class="stat-label">Passengers Today</div><div class="stat-value">{{ passenger_count|default:0 }}</div></div>
+            <div class="stats-grid"><div class="stat-card gold"><div class="stat-label">Today's Earnings</div><div class="stat-value">৳{{ today_earnings|floatformat:0|default:0 }}</div></div><div class="stat-card green"><div class="stat-label">Trips Completed</div><div class="stat-value">{{ trips_completed|default:0 }}</div></div><div class="stat-card orange"><div class="stat-label">Passengers Today</div><div class="stat-value">{{ passenger_count|default:0 }}</div></div></div>
+        </section>
+
+        <!-- CHAT SECTION -->
+        <section id="sec-chat" class="section">
+            <div class="page-header"><div><div class="page-title">Chat</div><div class="page-subtitle">Communication with admin</div></div></div>
+            <div class="card">
+                <div class="chat-box" id="chatBox">
+                    <div class="chat-msg recv"><div class="chat-avatar-small" style="background:rgba(30,144,255,0.15);color:var(--blue);">AD</div><div><div class="chat-bubble">Hello {{ request.user.first_name|default:"Driver" }}, drive safe today!</div><div class="chat-time">8:00 AM</div></div></div>
+                </div>
+                <div class="chat-input-row"><input type="text" id="chatInput" class="chat-input" placeholder="Type a message..."><button class="btn btn-primary" onclick="sendChat()">Send</button></div>
             </div>
+        </section>
+
+        <!-- ALERTS SECTION -->
+        <section id="sec-alerts" class="section">
+            <div class="page-header"><div><div class="page-title">Emergency Alerts</div><div class="page-subtitle">Send emergency notification to admin</div></div></div>
+            <button class="emergency-btn" onclick="sendEmergencyAlert()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> SEND EMERGENCY ALERT</button>
+            <div class="card"><div class="card-title"><span class="dot"></span>Recent Alerts</div><p style="color:var(--muted);text-align:center;padding:20px;">No recent alerts. All clear! 🟢</p></div>
         </section>
 
         <!-- PROFILE SECTION -->
         <section id="sec-profile" class="section">
             <div class="page-header"><div><div class="page-title">My Profile</div><div class="page-subtitle">Driver account information</div></div><button class="btn btn-outline" onclick="window.location.href=`{% url 'driver_profile' %}`">Edit Profile</button></div>
-            <div class="card">
-                <div class="profile-header">
-                    <div class="profile-avatar-lg">{{ request.user.first_name|default:"D"|first|upper }}</div>
-                    <div class="profile-info"><div class="name">{{ request.user.get_full_name|default:request.user.username }}</div><div class="role">Bus Driver · Easy Transport</div><div class="tags"><span class="profile-tag">Route {{ driver.route.code|default:"J1" }}</span><span class="profile-tag">Bus {{ driver.bus.bus_number|default:"Olam-1" }}</span><span class="profile-tag">On Duty</span></div></div>
-                </div>
-                <div class="field-row">
-                    <div class="field-group"><label>Driver ID</label><div class="field-value">{{ driver.license_number|default:"N/A" }}</div></div>
-                    <div class="field-group"><label>Phone</label><div class="field-value">{{ driver.phone|default:"N/A" }}</div></div>
-                    <div class="field-group"><label>License No.</label><div class="field-value">{{ driver.license_number|default:"N/A" }}</div></div>
-                    <div class="field-group"><label>Experience</label><div class="field-value">6 years</div></div>
-                    <div class="field-group"><label>Assigned Bus</label><div class="field-value">Bus {{ driver.bus.bus_number|default:"Olam-1" }} ({{ driver.bus.capacity|default:"30" }} seats)</div></div>
-                    <div class="field-group"><label>Assigned Route</label><div class="field-value">Route {{ driver.route.code|default:"J1" }} — {{ driver.route.start|default:"Signboard" }} ↔ {{ driver.route.end|default:"Mirpur 10" }}</div></div>
-                </div>
-            </div>
+            <div class="card"><div class="profile-header"><div class="profile-avatar-lg">{{ request.user.first_name|default:"D"|first|upper }}</div><div class="profile-info"><div class="name">{{ request.user.get_full_name|default:request.user.username }}</div><div class="role">Bus Driver · Easy Transport</div><div class="tags"><span class="profile-tag">Route {{ driver.route.code|default:"J1" }}</span><span class="profile-tag">Bus {{ driver.bus.bus_number|default:"Olam-1" }}</span><span class="profile-tag">On Duty</span></div></div></div>
+            <div class="field-row"><div class="field-group"><label>Driver ID</label><div class="field-value">{{ driver.license_number|default:"N/A" }}</div></div><div class="field-group"><label>Phone</label><div class="field-value">{{ driver.phone|default:"N/A" }}</div></div><div class="field-group"><label>License No.</label><div class="field-value">{{ driver.license_number|default:"N/A" }}</div></div><div class="field-group"><label>Experience</label><div class="field-value">6 years</div></div><div class="field-group"><label>Assigned Bus</label><div class="field-value">Bus {{ driver.bus.bus_number|default:"Olam-1" }} ({{ driver.bus.capacity|default:"30" }} seats)</div></div><div class="field-group"><label>Assigned Route</label><div class="field-value">Route {{ driver.route.code|default:"J1" }} — {{ driver.route.start|default:"Signboard" }} ↔ {{ driver.route.end|default:"Mirpur 10" }}</div></div></div></div>
         </section>
     </main>
 </div>
@@ -392,6 +341,7 @@
 <div class="toast" id="toast"><span class="toast-icon" id="toastIcon">✅</span><span id="toastMsg">Action completed</span></div>
 
 <script>
+    // Theme toggle
     const themeToggle = document.getElementById('themeToggle');
     const toggleIcon = document.getElementById('toggleIcon');
     const html = document.documentElement;
@@ -405,7 +355,7 @@
         toggleIcon.textContent = next === 'dark' ? '☀️' : '🌙';
     });
 
-    // Navigation function - shows the correct section when sidebar item clicked
+    // Navigation between sections
     function navigate(sectionId) {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         const targetSection = document.getElementById('sec-' + sectionId);
@@ -415,9 +365,10 @@
         if (btn) btn.classList.add('active');
         if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
         if (sectionId === 'passengers') loadPassengers();
+        if (sectionId === 'chat') document.getElementById('chatBox')?.scrollTo(0, document.getElementById('chatBox').scrollHeight);
     }
 
-    // Passenger list (demo data)
+    // Passenger demo data
     const passengers = [
         {seat:'A-01',name:'Shahrin Rahman',type:'Student',id:'2021-1-60-045',stop:'Mirpur 10',boarded:false},
         {seat:'A-02',name:'Rahim Uddin',type:'Student',id:'2022-1-60-028',stop:'Mirpur 10',boarded:false},
@@ -427,16 +378,33 @@
     function renderPassengers() {
         const tbody = document.getElementById('passengerTable');
         if (!tbody) return;
-        tbody.innerHTML = passengers.map((p, i) => `
-            <tr><td><span class="badge badge-gold">${p.seat}</span></td><td>${p.name}</td>
-            <td><span class="badge badge-${p.type==='Student'?'blue':p.type==='Teacher'?'green':'gold'}">${p.type}</span></td>
-            <td>${p.id}</td><td>${p.stop}</td>
-            <td><button class="btn ${p.boarded?'btn-green':'btn-outline'}" style="padding:4px 12px;font-size:12px;" onclick="toggleBoard(${i})">${p.boarded?'✓ Boarded':'Mark'}</button></td></tr>
-        `).join('');
+        tbody.innerHTML = passengers.map((p, i) => `<tr><td><span class="badge badge-gold">${p.seat}</span></td><td>${p.name}</td><td><span class="badge badge-${p.type==='Student'?'blue':p.type==='Teacher'?'green':'gold'}">${p.type}</span></td><td>${p.id}</td><td>${p.stop}</td><td><button class="btn ${p.boarded?'btn-green':'btn-outline'}" style="padding:4px 12px;font-size:12px;" onclick="toggleBoard(${i})">${p.boarded?'✓ Boarded':'Mark'}</button></td></tr>`).join('');
         document.querySelectorAll('#passengerCount,#passengerStat').forEach(el => { if(el) el.textContent = passengers.length; });
     }
     function toggleBoard(i) { passengers[i].boarded = !passengers[i].boarded; renderPassengers(); }
     function loadPassengers() { renderPassengers(); }
+
+    // Chat function
+    function sendChat() {
+        const input = document.getElementById('chatInput');
+        const msg = input?.value.trim();
+        if (!msg) return;
+        const box = document.getElementById('chatBox');
+        if (!box) return;
+        const now = new Date();
+        const t = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0');
+        box.innerHTML += `<div class="chat-msg sent"><div class="chat-avatar-small" style="background:rgba(255,107,53,0.15);color:var(--orange);">${'{{ request.user.first_name|default:"D"|first|upper }}'}</div><div><div class="chat-bubble">${msg}</div><div class="chat-time">${t}</div></div></div>`;
+        input.value = '';
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // Emergency alert
+    function sendEmergencyAlert() {
+        if (!confirm('🚨 Send emergency alert to admin?')) return;
+        const btn = document.querySelector('.emergency-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Sending...'; }
+        setTimeout(() => { showToast('🚨 Emergency alert sent!'); if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> SEND EMERGENCY ALERT'; } }, 1500);
+    }
 
     // Trip API functions
     async function startTripAPI(tripId) {
@@ -462,10 +430,7 @@
     function getCookie(name) {
         let cookieValue = null;
         if (document.cookie) {
-            for (let c of document.cookie.split(';')) {
-                c = c.trim();
-                if (c.startsWith(name + '=')) { cookieValue = decodeURIComponent(c.substring(name.length + 1)); break; }
-            }
+            for (let c of document.cookie.split(';')) { c = c.trim(); if (c.startsWith(name + '=')) { cookieValue = decodeURIComponent(c.substring(name.length + 1)); break; } }
         }
         return cookieValue;
     }
@@ -479,10 +444,8 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadPassengers();
         const dateEl = document.getElementById('currentDate');
-        if (dateEl) {
-            const now = new Date();
-            dateEl.innerHTML = now.toLocaleDateString('en-US', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) + ' · Route {{ driver.route.code|default:"J1" }}';
-        }
+        if (dateEl) { const now = new Date(); dateEl.innerHTML = now.toLocaleDateString('en-US', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) + ' · Route {{ driver.route.code|default:"J1" }}'; }
+        document.getElementById('chatInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } });
     });
 </script>
 </body>
