@@ -254,7 +254,7 @@ function loadBusesDropdown() {
         return res.json();
     })
     .then(data => {
-        console.log('Bus API data:', data);
+        console.log('Bus API ', data);
         if(data.success) {
             busSelect.innerHTML = '<option value="">Select a Bus</option>';
             
@@ -361,7 +361,7 @@ function editSchedule(scheduleId) {
     })
     .then(res => res.json())
     .then(data => {
-        console.log('Schedule data:', data);
+        console.log('Schedule ', data);
         if(data.success) {
             const schedule = data.schedule;
             document.getElementById('modalTitle').textContent = 'Edit Schedule';
