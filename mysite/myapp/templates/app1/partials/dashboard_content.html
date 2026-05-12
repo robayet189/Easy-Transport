@@ -51,7 +51,7 @@
   </div>
 </div>
 
-<!-- Quick Actions Grid - WITH TRACK BUS CARD -->
+<!-- Quick Actions Grid - WITH TRACK BUS CARD + PAYMENTS CARD -->
 <div class="actions-grid">
   <a href="{% url 'schedule' %}" class="action-card">
     <div class="action-icon red">
@@ -62,7 +62,7 @@
     <span class="action-label">Book a Seat</span>
   </a>
 
-  <!-- ✅ NEW: Track Bus Action Card -->
+  <!-- ✅ Track Bus Action Card -->
   <a href="{% url 'track_bus' %}" class="action-card">
     <div class="action-icon cyan">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -72,6 +72,16 @@
       </svg>
     </div>
     <span class="action-label">Track Bus</span>
+  </a>
+
+  <!-- ✅ NEW: Payments / Manage Pass Action Card -->
+  <a href="{% url 'payments' %}" class="action-card">
+    <div class="action-icon amber">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+    </div>
+    <span class="action-label">Payments</span>
   </a>
 
   <a href="{% url 'my_bookings' %}" class="action-card">
@@ -528,3 +538,16 @@ function getCookie(name) {
   return cookieValue;
 }
 </script>
+
+
+
+
+
+<a href="{% url 'emergency' %}" class="action-card" style="border-color: #ff4757;">
+    <div class="action-icon red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+    </div>
+    <span class="action-label">Emergency</span>
+</a>

@@ -126,4 +126,18 @@ urlpatterns = [
     # ✅ Driver Emergency Alert & Passenger API
     path('driver/api/send-alert/', views.driver_send_alert, name='driver_send_alert'),
     path('driver/api/passengers/', views.driver_get_passengers, name='driver_get_passengers'),
+
+
+#payment
+
+
+    path('payments/', views.payment_page, name='payments'),
+path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
+path('payment-history/', views.payment_history, name='payment_history'),
+path('payment-success/<str:transaction_id>/', views.payment_success, name='payment_success'),
+
+
+path('emergency/', views.emergency_page, name='emergency'),
+path('send-emergency/', views.send_emergency_alert, name='send_emergency'),
+path('emergency-history/', views.emergency_history, name='emergency_history'),
 ]
