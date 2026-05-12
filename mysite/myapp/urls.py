@@ -141,7 +141,23 @@ urlpatterns = [
     # API Endpoints
     path('driver/api/send-alert/', views.driver_send_alert, name='driver_send_alert'),
     path('driver/api/passengers/', views.driver_get_passengers, name='driver_get_passengers'),
+
     path('driver/api/trips/', views.driver_trips_api, name='driver_trips_api'),
     path('driver/api/routes/', views.driver_routes_api, name='driver_routes_api'),
     path('driver/api/schedules/', views.driver_schedules_api, name='driver_schedules_api'),
+
+
+
+#payment
+
+
+    path('payments/', views.payment_page, name='payments'),
+    path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
+    path('payment-history/', views.payment_history, name='payment_history'),
+    path('payment-success/<str:transaction_id>/', views.payment_success, name='payment_success'),
+
+
+    path('emergency/', views.emergency_page, name='emergency'),
+    path('send-emergency/', views.send_emergency_alert, name='send_emergency'),
+    path('emergency-history/', views.emergency_history, name='emergency_history'),
 ]

@@ -336,6 +336,10 @@ def dashboard(request):
     ).select_related('schedule__route', 'schedule__bus').order_by('-schedule__travel_date')[:3]
     total_bookings = Booking.objects.filter(user=user, status='confirmed').count()
     total_spent = Booking.objects.filter(user=user, status='confirmed').aggregate(total=Sum('amount'))['total'] or 0
+    # PaymentTransaction থেকে total_spent নিতে চাইলে নিচের লাইন যোগ করতে পারেন, কিন্তু একাধিক বার total_spent নির্ধারণ করবেন না।
+    # total_spent = PaymentTransaction.objects.filter(user=request.user, status='completed').aggregate(total=Sum('amount'))['total'] or 0
+    has_active_pass = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).exists()
+    
     context = {
         'first_name': user.first_name,
         'pass_status': 'Active' if profile.is_pass_active else 'Inactive',
@@ -344,6 +348,8 @@ def dashboard(request):
         'past_bookings': past_bookings,
         'total_bookings': total_bookings,
         'total_spent': total_spent,
+        'user_total_spent': total_spent,
+        'has_active_pass': has_active_pass,
     }
     if is_ajax(request):
         return render(request, 'app1/partials/dashboard_content.html', context)
@@ -1571,3 +1577,129 @@ def driver_start_chat(request, booking_id=None):
         return JsonResponse({'success': True, 'room_id': room.id, 'redirect_url': f'/driver/chat/{room.id}/'})
 
     return JsonResponse({'success': False, 'error': 'Booking ID required'})
+
+# ==================== PAYMENT VIEWS ====================
+from datetime import timedelta
+from django.db.models import Sum
+from .models import PaymentTransaction, UserPass, PaymentMethod
+
+@login_required
+def payment_page(request):
+    current_pass = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).first()
+    payment_history = PaymentTransaction.objects.filter(user=request.user)[:10]
+    total_spent = PaymentTransaction.objects.filter(user=request.user, status='completed').aggregate(total=Sum('amount'))['total'] or 0
+    active_pass_count = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).count()
+    return render(request, 'app1/payments.html', {
+        'current_pass': current_pass,
+        'payment_history': payment_history,
+        'total_spent': total_spent,
+        'active_pass_count': active_pass_count,
+    })
+
+@login_required
+def purchase_pass(request):
+    if request.method == 'POST':
+        import json
+        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+        pass_type = data.get('pass_type')
+        payment_method = data.get('payment_method')
+        if pass_type not in ['monthly', 'semester']:
+            return JsonResponse({'success': False, 'error': 'Invalid pass type'})
+        amount = 1200 if pass_type == 'monthly' else 5500
+        validity_days = 30 if pass_type == 'monthly' else 120
+        start_date = timezone.now().date()
+        end_date = start_date + timedelta(days=validity_days)
+        transaction = PaymentTransaction.objects.create(
+            user=request.user, payment_method=payment_method, payment_type='pass',
+            amount=amount, status='completed', pass_type=pass_type,
+            pass_valid_from=start_date, pass_valid_until=end_date
+        )
+        UserPass.objects.create(
+            user=request.user, pass_type=pass_type, transaction=transaction,
+            start_date=start_date, end_date=end_date, is_active=True
+        )
+        profile, created = UserProfile.objects.get_or_create(user=request.user)
+        profile.is_pass_active = True
+        profile.pass_valid_until = end_date
+        profile.pass_id = f"PASS-{request.user.id}-{timezone.now().year}"
+        profile.save()
+        return JsonResponse({'success': True, 'message': f'{pass_type.capitalize()} Pass purchased!', 'transaction_id': transaction.transaction_id, 'valid_until': end_date.strftime('%Y-%m-%d')})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+@login_required
+def payment_history(request):
+    transactions = PaymentTransaction.objects.filter(user=request.user).order_by('-created_at')
+    total_spent = transactions.filter(status='completed').aggregate(total=Sum('amount'))['total'] or 0
+    return render(request, 'app1/payment_history.html', {'transactions': transactions, 'total_spent': total_spent})
+
+@login_required
+def payment_success(request, transaction_id):
+    transaction = get_object_or_404(PaymentTransaction, transaction_id=transaction_id, user=request.user)
+    return render(request, 'app1/payment_success.html', {'transaction': transaction})
+
+
+
+    # ==================== EMERGENCY ALERT VIEWS ====================
+
+from .models import EmergencyAlert, EmergencyContact
+
+@login_required
+def emergency_page(request):
+    """Display emergency alert page with call options"""
+    contacts = EmergencyContact.objects.filter(is_active=True)
+    return render(request, 'app1/emergency.html', {'contacts': contacts})
+
+
+@login_required
+def send_emergency_alert(request):
+    """API endpoint to send emergency alert"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            alert_type = data.get('alert_type', 'other')
+            message = data.get('message', '')
+            latitude = data.get('latitude')
+            longitude = data.get('longitude')
+            location_name = data.get('location_name', '')
+            booking_id = data.get('booking_id')
+            
+            alert = EmergencyAlert.objects.create(
+                user=request.user,
+                alert_type=alert_type,
+                message=message or f"Emergency reported by {request.user.get_full_name() or request.user.username}",
+                latitude=latitude,
+                longitude=longitude,
+                location_name=location_name,
+                priority=1,
+                status='pending'
+            )
+            
+            if booking_id:
+                try:
+                    alert.booking = Booking.objects.get(id=booking_id)
+                    alert.save()
+                except:
+                    pass
+            
+            # For demo, print to console
+            print(f"🚨 EMERGENCY ALERT #{alert.id} from {request.user.username}")
+            print(f"Type: {alert_type}, Message: {message}")
+            
+            # In production, you can send SMS/email to emergency contacts here
+            
+            return JsonResponse({
+                'success': True,
+                'alert_id': alert.id,
+                'message': 'Emergency alert sent! Admin has been notified.'
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
+
+@login_required
+def emergency_history(request):
+    """View user's past emergency alerts"""
+    alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'app1/emergency_history.html', {'alerts': alerts})
+
