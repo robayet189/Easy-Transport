@@ -299,9 +299,25 @@ def admin_add_schedule(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_get_bus(request, bus_id):
+    """Get single bus details via API"""
     if request.method == 'GET':
-        bus = get_object_or_404(Bus, id=bus_id)
-        return JsonResponse({'success': True, 'bus': {'id': bus.id, 'bus_number': bus.bus_number, 'capacity': bus.capacity, 'is_active': bus.is_active}})
+        try:
+            bus = get_object_or_404(Bus, id=bus_id)
+            return JsonResponse({
+                'success': True,
+                'bus': {
+                    'id': bus.id,
+                    'bus_number': bus.bus_number,
+                    'capacity': bus.capacity,
+                    'driver_name': bus.driver_name or '',
+                    'driver_phone': bus.driver_phone or '',
+                    'has_ac': bus.has_ac,
+                    'has_wifi': bus.has_wifi,
+                    'is_active': bus.is_active,
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
 
