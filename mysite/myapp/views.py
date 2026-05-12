@@ -871,8 +871,6 @@ def driver_login(request):
         return JsonResponse({'success': False, 'message': 'Invalid username or password'}, status=401)
 
 # ==================== DRIVER EMERGENCY ALERT & PASSENGER API ====================
-# CRITICAL FIX: These functions MUST be defined BEFORE driver_dashboard
-# or any function that might call them indirectly
 
 @login_required
 @require_http_methods(["POST"])
