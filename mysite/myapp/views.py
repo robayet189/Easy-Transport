@@ -15,7 +15,12 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
-from .models import UserProfile, Route, Bus, Schedule, Booking, BusLocation, Driver, Trip, TripStop, VehicleIssue
+# Import ALL models including Alert and Notification
+from .models import (
+    UserProfile, Route, Bus, Schedule, Booking, BusLocation,
+    Driver, Trip, TripStop, VehicleIssue, Alert, Notification,
+    ChatRoom, ChatMessage
+)
 import json, random, string, re
 from datetime import datetime, timedelta
 
@@ -739,8 +744,6 @@ def track_bus_api(request):
 
 # ==================== CHAT SYSTEM VIEWS ====================
 
-from .models import ChatRoom, ChatMessage
-
 @login_required
 def chat_list(request):
     """Display chat room list based on user role"""
@@ -868,11 +871,16 @@ def driver_login(request):
         return JsonResponse({'success': False, 'message': 'Invalid username or password'}, status=401)
 
 # ==================== DRIVER EMERGENCY ALERT & PASSENGER API ====================
+# CRITICAL FIX: These functions MUST be defined BEFORE driver_dashboard
+# or any function that might call them indirectly
 
 @login_required
 @require_http_methods(["POST"])
 def driver_send_alert(request):
-    """API: Driver sends emergency alert - saves to database + creates notification"""
+    """
+    API: Driver sends emergency alert - saves to database + creates notification
+    CHANGE REASON: Stores alert in Alert model and notifies admin via Notification model
+    """
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
     
@@ -882,7 +890,7 @@ def driver_send_alert(request):
         
         driver = request.user.driver_profile
         
-        # Create Alert record in database
+        # Create Alert record in database for tracking
         alert = Alert.objects.create(
             driver=driver,
             alert_type='emergency',
@@ -890,8 +898,7 @@ def driver_send_alert(request):
             location='Current trip location'
         )
         
-        # Also create notification for admin
-        from .models import Notification
+        # Create notification so admin sees it immediately
         Notification.objects.create(
             type='emergency',
             title=f'Emergency Alert - {driver.user.get_full_name()}',
@@ -900,14 +907,21 @@ def driver_send_alert(request):
             is_read=False
         )
         
-        return JsonResponse({'success': True, 'message': 'Emergency alert sent to admin!', 'alert_id': alert.id})
+        return JsonResponse({
+            'success': True, 
+            'message': 'Emergency alert sent to admin!', 
+            'alert_id': alert.id
+        })
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @login_required
 def driver_get_passengers(request):
-    """API: Get real passenger list for driver's today trips from Booking model"""
+    """
+    API: Get REAL passenger list for driver's today trips from Booking model
+    CHANGE REASON: Pulls confirmed bookings from database instead of hardcoded data
+    """
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'passengers': []})
     
@@ -924,7 +938,9 @@ def driver_get_passengers(request):
             departure_time=trip.departure_time
         ).first()
         if schedule:
-            bookings = Booking.objects.filter(schedule=schedule, status='confirmed').select_related('user')
+            bookings = Booking.objects.filter(
+                schedule=schedule, status='confirmed'
+            ).select_related('user')
             for b in bookings:
                 passengers.append({
                     'seat': b.seat_number,
@@ -935,11 +951,14 @@ def driver_get_passengers(request):
                 })
     
     return JsonResponse({'success': True, 'passengers': passengers})
+
+
 @login_required
 def driver_dashboard(request):
     """
     Driver dashboard - shows REAL assigned trips, passengers, earnings from database
-    No fake/hardcoded data
+    CRITICAL FIX: No fake/hardcoded data - everything from Trip, Schedule, Booking models
+    CHANGE REASON: Driver needs to see actual assignments made by admin
     """
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
@@ -948,7 +967,7 @@ def driver_dashboard(request):
     driver = request.user.driver_profile
     today = timezone.now().date()
     
-    # Get REAL trips from Trip model
+    # Get REAL trips from Trip model (created by admin_add_schedule)
     today_trips = Trip.objects.filter(
         driver=driver, travel_date=today
     ).select_related('route', 'bus').order_by('departure_time')
@@ -961,7 +980,7 @@ def driver_dashboard(request):
         driver=driver, status='ongoing'
     ).select_related('route', 'bus').first()
     
-    # Calculate REAL passenger count from database
+    # Calculate REAL passenger count from Booking model
     passenger_count = 0
     today_earnings = 0
     
@@ -972,7 +991,9 @@ def driver_dashboard(request):
                 departure_time=trip.departure_time
             ).first()
             if schedule:
-                count = Booking.objects.filter(schedule=schedule, status='confirmed').count()
+                count = Booking.objects.filter(
+                    schedule=schedule, status='confirmed'
+                ).count()
                 passenger_count += count
                 today_earnings += count * float(schedule.fare)
     
@@ -988,10 +1009,12 @@ def driver_dashboard(request):
         'today_earnings': today_earnings,
     }
     return render(request, 'app1/driver/driver_dashboard.html', context)
+
+
 @login_required
 def driver_profile(request):
     """
-    ✅ FIXED: Driver profile page - Edit ALL fields including name, email, phone, address
+    Driver profile page - Edit ALL fields including name, email, phone, address
     CHANGE REASON: Allow drivers to update personal info and see changes reflected everywhere
     """
     if not hasattr(request.user, 'driver_profile'):
@@ -999,10 +1022,9 @@ def driver_profile(request):
         return redirect('homepage')
     
     driver = request.user.driver_profile
-    user = request.user  # Get the User object linked to this driver
+    user = request.user
     
     if request.method == 'POST':
-        # CHANGE: Get ALL form fields with .strip() to remove extra spaces
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
         email = request.POST.get('email', '').strip().lower()
@@ -1010,49 +1032,36 @@ def driver_profile(request):
         address = request.POST.get('address', '').strip()
         emergency_contact = request.POST.get('emergency_contact', '').strip()
         
-        # CHANGE: Validate required fields
         if not phone or not emergency_contact:
             messages.error(request, 'Phone and Emergency Contact are required.')
             return redirect('driver_profile')
         
-        # CHANGE: Validate email format
         if email and not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
             messages.error(request, 'Invalid email format.')
             return redirect('driver_profile')
         
-        # CHANGE: Check if email is already taken by another user
         if email and email != user.email and User.objects.filter(email=email).exclude(pk=user.pk).exists():
-            messages.error(request, 'This email is already registered to another account.')
+            messages.error(request, 'This email is already registered.')
             return redirect('driver_profile')
         
-        # CHANGE: Update User model fields (first_name, last_name, email)
-        if first_name:
-            user.first_name = first_name
-        if last_name:
-            user.last_name = last_name
-        if email:
-            user.email = email
-        user.save()  # Save User changes
+        if first_name: user.first_name = first_name
+        if last_name: user.last_name = last_name
+        if email: user.email = email
+        user.save()
         
-        # CHANGE: Update Driver model fields (phone, address, emergency_contact)
         driver.phone = phone
         driver.address = address
         driver.emergency_contact = emergency_contact
-        driver.save()  # Save Driver changes
+        driver.save()
         
-        # CHANGE: Show success message
         messages.success(request, 'Profile updated successfully!')
-        
-        # ✅ FIXED: Redirect to driver_dashboard instead of driver_profile
-        # CHANGE REASON: Prevents logout redirect loop - ensures user goes to dashboard after profile update
         return redirect('driver_dashboard')
     
-    # For GET request, pass both user and driver to template
-    context = {
+    return render(request, 'app1/driver/driver_profile.html', {
         'driver': driver,
-        'user': user,  # CHANGE: Pass user object for name/email fields
-    }
-    return render(request, 'app1/driver/driver_profile.html', context)
+        'user': user,
+    })
+
 
 @login_required
 def trip_detail(request, trip_id):
@@ -1064,6 +1073,7 @@ def trip_detail(request, trip_id):
     stops = trip.stops.all().order_by('stop_order')
     context = {'trip': trip, 'stops': stops}
     return render(request, 'app1/driver/trip_detail.html', context)
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -1079,6 +1089,7 @@ def start_trip(request, trip_id):
     else:
         return JsonResponse({'success': False, 'message': 'Trip cannot be started in current status'}, status=400)
 
+
 @login_required
 @require_http_methods(["POST"])
 def complete_trip(request, trip_id):
@@ -1093,6 +1104,7 @@ def complete_trip(request, trip_id):
         return JsonResponse({'success': True, 'message': 'Trip completed successfully'})
     else:
         return JsonResponse({'success': False, 'message': 'Trip cannot be completed in current status'}, status=400)
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -1115,6 +1127,7 @@ def update_stop_status(request, stop_id):
         return JsonResponse({'success': True, 'message': 'Departure recorded'})
     else:
         return JsonResponse({'success': False, 'message': 'Invalid action'}, status=400)
+
 
 @login_required
 def driver_logout(request):
