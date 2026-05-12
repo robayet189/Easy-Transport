@@ -6,7 +6,7 @@ from . import views, views_admin
 urlpatterns = [
     # ================= AUTH & HOME =================
     path('', views.homepage, name='homepage'),
-    path('login/', views.login_page, name='login_page'),  # ✅ Unified login for all
+    path('login/', views.login_page, name='login_page'),
     path('api/login/', views.login_user, name='login_user'),
     path('register/', views.register_page, name='register_page'),
     path('api/register/', views.register_user, name='register_user'),
@@ -101,7 +101,6 @@ urlpatterns = [
     path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
     path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
 
-
     # ==================== CHAT SYSTEM URLs ====================
     path('chat/', views.chat_list, name='chat_list'),
     path('chat/<int:room_id>/', views.chat_room, name='chat_room'),
@@ -110,13 +109,15 @@ urlpatterns = [
     path('chat/messages/<int:room_id>/', views.get_chat_messages, name='get_chat_messages'),
     path('chat/close/<int:room_id>/', views.close_chat, name='close_chat'),
 
-
     # ==================== DRIVER MODULE URLs ====================
-    # ✅ FIXED: Changed to use unified login
-    path('driver/login/', views.login_page, name='driver_login'),  # ✅ Now uses same login page
+    path('driver/login/', views.login_page, name='driver_login'),
     path('driver/login/submit/', views.driver_login, name='driver_login_submit'),
     path('driver/logout/', views.driver_logout, name='driver_logout'),
     path('driver/dashboard/', views.driver_dashboard, name='driver_dashboard'),
+    
+    # ✅ NEW: Real-time Driver Dashboard API Endpoint
+    path('driver/dashboard/api/', views.driver_dashboard_api, name='driver_dashboard_api'),
+    
     path('driver/profile/', views.driver_profile, name='driver_profile'),
     path('driver/trip/<int:trip_id>/', views.trip_detail, name='trip_detail'),
     path('driver/trip/<int:trip_id>/start/', views.start_trip, name='start_trip'),
