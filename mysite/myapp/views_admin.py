@@ -115,7 +115,7 @@ def admin_routes(request):
 @login_required
 @user_passes_test(is_admin)
 def admin_schedule(request):
-    schedules = Schedule.objects.select_related('route', 'bus').all().order_by('travel_date', 'departure_time')
+    schedules = Schedule.objects.select_related('route', 'bus', 'driver').all().order_by('travel_date', 'departure_time')
     routes = Route.objects.all()
     drivers = Driver.objects.select_related('user').filter(is_active=True, is_approved=True)
     today = timezone.now().date()
@@ -142,38 +142,119 @@ def admin_notifications(request):
     if search_query: notifications = notifications.filter(Q(title__icontains=search_query) | Q(message__icontains=search_query))
     return render(request, 'app1/admin/admin_notifications.html', {'active': 'notifications', 'notifications': notifications[:50], 'recent_bookings': Booking.objects.select_related('user', 'schedule__route').order_by('-booking_date')[:10], 'recent_alerts': Alert.objects.filter(is_resolved=False).order_by('-created_at')[:10], 'total_notifications': Notification.objects.count(), 'unread_count': Notification.objects.filter(is_read=False).count(), 'emergency_count': Notification.objects.filter(type='emergency', is_resolved=False).count(), 'resolved_count': Notification.objects.filter(is_resolved=True).count(), 'filter_type': filter_type, 'search_query': search_query})
 
-# ==================== CRITICAL: admin_add_schedule with Trip creation ====================
+# ==================== CRITICAL FIX: admin_add_schedule with Trip creation ====================
 @login_required
 @user_passes_test(is_admin)
 def admin_add_schedule(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            route = get_object_or_404(Route, id=data.get('route'))
-            bus = get_object_or_404(Bus, id=data.get('bus'))
-            travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
-            departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
-            if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
-                return JsonResponse({'success': False, 'message': 'Schedule already exists'})
-            schedule = Schedule.objects.create(route=route, bus=bus, travel_date=travel_date, departure_time=departure_time, arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None, fare=float(data.get('fare', 40)), available_seats=data.get('available_seats') or bus.capacity, is_active=data.get('is_active', True))
-            Notification.objects.create(type='schedule', title='New Schedule', message=f'Route {route.code} on {travel_date} at {departure_time}', is_read=False)
-            driver_id = data.get('driver')
-            trip_created = False
-            if driver_id and str(driver_id).strip() and str(driver_id) not in ['null', 'undefined', 'None', '']:
-                try:
-                    driver = Driver.objects.get(id=int(driver_id))
-                    driver.assigned_route = route; driver.assigned_bus = bus; driver.save()
-                    Trip.objects.create(driver=driver, route=route, bus=bus, travel_date=travel_date, departure_time=departure_time, arrival_time=schedule.arrival_time, status='pending')
-                    trip_created = True
-                    Notification.objects.create(type='driver', title='Driver Assigned', message=f'{driver.user.get_full_name()} assigned to Route {route.code}', related_driver=driver, is_read=False)
-                    print(f"✅ TRIP CREATED: Driver={driver.user.get_full_name()}, Route={route.code}")
-                except: pass
-            return JsonResponse({'success': True, 'message': 'Schedule added. ' + ('Trip created!' if trip_created else 'No driver assigned.'), 'schedule_id': schedule.id})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)})
-    return JsonResponse({'success': False, 'message': 'Invalid method'})
+    """
+    ✅ FIXED: Create Schedule AND automatically create Trip if driver is assigned
+    This ensures driver dashboard shows the trip immediately
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
+    
+    try:
+        data = json.loads(request.body)
+        
+        # Extract and validate required fields
+        route_id = data.get('route')
+        bus_id = data.get('bus')
+        driver_id = data.get('driver')  # ✅ Can be null if no driver assigned yet
+        travel_date = data.get('travel_date')
+        departure_time = data.get('departure_time')
+        arrival_time = data.get('arrival_time')
+        fare = data.get('fare', 40)
+        available_seats = data.get('available_seats')
+        is_active = data.get('is_active', True)
+        
+        if not all([route_id, bus_id, travel_date, departure_time]):
+            return JsonResponse({'success': False, 'message': 'Route, Bus, Date, and Time are required'}, status=400)
+        
+        # Fetch objects
+        route = get_object_or_404(Route, id=route_id)
+        bus = get_object_or_404(Bus, id=bus_id)
+        
+        # Check for duplicate schedule
+        if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
+            return JsonResponse({'success': False, 'message': 'Schedule already exists for this route, date, and time'}, status=400)
+        
+        # Parse times
+        from datetime import datetime
+        departure = datetime.strptime(departure_time, '%H:%M').time()
+        arrival = datetime.strptime(arrival_time, '%H:%M').time() if arrival_time else None
+        
+        # Create Schedule
+        schedule = Schedule.objects.create(
+            route=route,
+            bus=bus,
+            driver_id=driver_id if driver_id else None,  # ✅ Save driver to Schedule
+            departure_time=departure,
+            arrival_time=arrival,
+            travel_date=travel_date,
+            fare=fare,
+            available_seats=available_seats or bus.capacity,
+            is_active=is_active
+        )
+        
+        # ✅ CRITICAL: If driver is assigned, also create Trip entry
+        trip_created = False
+        if driver_id and str(driver_id).strip() and str(driver_id) not in ['null', 'undefined', 'None', '']:
+            try:
+                driver = Driver.objects.get(id=int(driver_id))
+                
+                # Update driver's assigned bus/route for dashboard display
+                driver.assigned_bus = bus
+                driver.assigned_route = route
+                driver.save()
+                
+                # Create Trip entry - this is what driver dashboard queries!
+                Trip.objects.create(
+                    schedule=schedule,  # ✅ Link to Schedule
+                    driver=driver,
+                    route=route,
+                    bus=bus,
+                    travel_date=travel_date,
+                    departure_time=departure,
+                    arrival_time=arrival,
+                    status='pending'
+                )
+                trip_created = True
+                
+                # Create notification for driver
+                Notification.objects.create(
+                    type='driver',
+                    title='New Trip Assigned',
+                    message=f'You have been assigned to Route {route.code} on {travel_date}',
+                    related_driver=driver,
+                    is_read=False
+                )
+                
+            except Driver.DoesNotExist:
+                pass  # Driver not found, but schedule still created
+            except Exception as e:
+                print(f"Trip creation error: {str(e)}")
+        
+        # Create notification for schedule creation
+        Notification.objects.create(
+            type='schedule',
+            title='New Schedule Created',
+            message=f'Route {route.code} on {travel_date} at {departure_time}',
+            is_read=False
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Schedule created successfully!{" Trip assigned to driver." if trip_created else " No driver assigned yet."}',
+            'schedule_id': schedule.id,
+            'trip_created': trip_created
+        })
+        
+    except Exception as e:
+        print(f"Schedule creation error: {str(e)}")
+        return JsonResponse({'success': False, 'message': f'Server error: {str(e)}'}, status=500)
 
-# ==================== FLEET API (Fixed: driver_name, driver_phone save) ====================
+# ==================== Other Admin Views (unchanged but included for completeness) ====================
+
 @login_required
 @user_passes_test(is_admin)
 def admin_get_bus(request, bus_id):
@@ -237,7 +318,6 @@ def admin_delete_bus(request, bus_id):
         bus.delete(); return JsonResponse({'success': True, 'message': 'Bus deleted'})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
-# ==================== ROUTE API ====================
 @login_required
 @user_passes_test(is_admin)
 def admin_add_route(request):
@@ -275,13 +355,12 @@ def admin_delete_route(request, route_id):
         route.delete(); return JsonResponse({'success': True, 'message': 'Route deleted'})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
-# ==================== SCHEDULE API ====================
 @login_required
 @user_passes_test(is_admin)
 def admin_get_schedule(request, schedule_id):
     if request.method == 'GET':
         s = get_object_or_404(Schedule, id=schedule_id)
-        return JsonResponse({'success': True, 'schedule': {'id': s.id, 'route': s.route.id, 'bus': s.bus.id, 'travel_date': s.travel_date.strftime('%Y-%m-%d'), 'departure_time': s.departure_time.strftime('%H:%M'), 'fare': float(s.fare), 'is_active': s.is_active}})
+        return JsonResponse({'success': True, 'schedule': {'id': s.id, 'route': s.route.id, 'bus': s.bus.id, 'driver': s.driver.id if s.driver else None, 'travel_date': s.travel_date.strftime('%Y-%m-%d'), 'departure_time': s.departure_time.strftime('%H:%M'), 'fare': float(s.fare), 'is_active': s.is_active}})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
 @login_required
@@ -290,6 +369,7 @@ def admin_update_schedule(request, schedule_id):
     if request.method in ['POST', 'PUT']:
         s = get_object_or_404(Schedule, id=schedule_id); data = json.loads(request.body)
         s.route = get_object_or_404(Route, id=data.get('route', s.route.id)); s.bus = get_object_or_404(Bus, id=data.get('bus', s.bus.id))
+        if data.get('driver'): s.driver = get_object_or_404(Driver, id=data.get('driver'))
         s.travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date(); s.departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
         s.fare = float(data.get('fare', s.fare)); s.available_seats = data.get('available_seats', s.available_seats); s.is_active = data.get('is_active', s.is_active); s.save()
         return JsonResponse({'success': True, 'message': 'Schedule updated'})
