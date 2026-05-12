@@ -112,7 +112,8 @@ urlpatterns = [
 
 
     # ==================== DRIVER MODULE URLs ====================
-    path('driver/login/', views.driver_login_page, name='driver_login'),
+    # ✅ FIXED: Changed name from 'driver_login' to 'driver_login_page' to match template
+    path('driver/login/', views.driver_login_page, name='driver_login_page'),
     path('driver/login/submit/', views.driver_login, name='driver_login_submit'),
     path('driver/logout/', views.driver_logout, name='driver_logout'),
     path('driver/dashboard/', views.driver_dashboard, name='driver_dashboard'),
