@@ -1,10 +1,12 @@
-﻿from django.urls import path
+﻿# Import Django URL utilities and view modules
+from django.urls import path
 from . import views, views_admin
 
+# Define URL patterns for the application
 urlpatterns = [
     # ================= AUTH & HOME =================
     path('', views.homepage, name='homepage'),
-    path('login/', views.login_page, name='login_page'),
+    path('login/', views.login_page, name='login_page'),  # ✅ Unified login for all
     path('api/login/', views.login_user, name='login_user'),
     path('register/', views.register_page, name='register_page'),
     path('api/register/', views.register_user, name='register_user'),
@@ -42,7 +44,7 @@ urlpatterns = [
     path('booking-confirmation/<str:booking_id>/', views.booking_confirmation, name='booking_confirmation'),
     path('bus-schedule/', views.bus_schedule, name='bus_schedule'),
     
-    # ================= 2-STEP BOOKING SYSTEM (Trip Summary & Seat Selection) =================
+    # ================= 2-STEP BOOKING SYSTEM =================
     path('trip-summary/<int:schedule_id>/', views.trip_summary, name='trip_summary'),
     path('seat-selection/<int:schedule_id>/', views.seat_selection, name='seat_selection'),
     path('confirm-booking-seat/', views.confirm_booking_seat, name='confirm_booking_seat'),
@@ -51,76 +53,86 @@ urlpatterns = [
     # ================= ADMIN DASHBOARD & MANAGEMENT =================
     path('admin_page/dashboard/', views_admin.admin_dashboard, name='admin_dashboard'),
     
-    # Admin Users
+    # Admin Users Management URLs
     path('admin_page/users/', views_admin.admin_users, name='admin_users'),
     path('admin_page/api/delete-user/<int:user_id>/', views_admin.admin_delete_user, name='admin_delete_user'),
     path('admin_page/api/update-booking/<int:booking_id>/', views_admin.admin_update_booking_status, name='admin_update_booking'),
 
-    # Admin Bookings
+    # Admin Bookings Management URLs
     path('admin_page/bookings/', views_admin.admin_bookings, name='admin_bookings'),
     path('admin_page/bookings/<str:booking_id>/approve/', views_admin.admin_approve_booking, name='admin_approve_booking'),
     path('admin_page/bookings/<str:booking_id>/reject/', views_admin.admin_reject_booking, name='admin_reject_booking'),
     
-    # Admin Fleet Management
+    # Admin Fleet Management URLs
     path('admin_page/fleet/', views_admin.admin_fleet, name='admin_fleet'),
     path('admin_page/api/get-bus/<int:bus_id>/', views_admin.admin_get_bus, name='admin_get_bus'),
-    path('admin_page/api/get-buses/', views_admin.admin_get_buses, name='admin_get_buses'),  # ✅ NEW: For schedule modal bus dropdown
+    path('admin_page/api/get-buses/', views_admin.admin_get_buses, name='admin_get_buses'),
     path('admin_page/api/add-bus/', views_admin.admin_add_bus, name='admin_add_bus'),
     path('admin_page/api/update-bus/<int:bus_id>/', views_admin.admin_update_bus, name='admin_update_bus'),
     path('admin_page/api/toggle-bus/<int:bus_id>/', views_admin.admin_toggle_bus_status, name='admin_toggle_bus'),
     path('admin_page/api/delete-bus/<int:bus_id>/', views_admin.admin_delete_bus, name='admin_delete_bus'),
     
-    # Admin Routes & Schedules
+    # ✅ NEW: Admin Routes & Schedules Management URLs
     path('admin_page/routes/', views_admin.admin_routes, name='admin_routes'),
     path('admin_page/api/add-route/', views_admin.admin_add_route, name='admin_add_route'),
     path('admin_page/api/route/<int:route_id>/', views_admin.admin_route_detail, name='admin_route_detail'),
     path('admin_page/api/update-route/<int:route_id>/', views_admin.admin_update_route, name='admin_update_route'),
     path('admin_page/api/delete-route/<int:route_id>/', views_admin.admin_delete_route, name='admin_delete_route'),
+    
+    # ✅ NEW: Schedule Management URLs
+    path('admin_page/schedule/', views_admin.admin_schedule, name='admin_schedule'),
+    path('admin_page/api/schedule/<int:schedule_id>/', views_admin.admin_get_schedule, name='admin_get_schedule'),
     path('admin_page/api/add-schedule/', views_admin.admin_add_schedule, name='admin_add_schedule'),
+    path('admin_page/api/update-schedule/<int:schedule_id>/', views_admin.admin_update_schedule, name='admin_update_schedule'),
     path('admin_page/api/toggle-schedule/<int:schedule_id>/', views_admin.admin_toggle_schedule_status, name='admin_toggle_schedule'),
     path('admin_page/api/delete-schedule/<int:schedule_id>/', views_admin.admin_delete_schedule, name='admin_delete_schedule'),
     
-    # Admin Analytics & System
+    # Admin Analytics & System URLs
     path('admin_page/revenue/', views_admin.admin_revenue, name='admin_revenue'),
     path('admin_page/alerts/', views_admin.admin_alerts, name='admin_alerts'),
     path('admin_page/notifications/', views_admin.admin_notifications, name='admin_notifications'),
     path('admin_page/api/send-notification/', views_admin.send_notification_api, name='send_notification_api'),
     path('admin_page/api/resolve-alert/<int:alert_id>/', views_admin.resolve_alert_api, name='resolve_alert_api'),
 
-    #tracking
+    # ✅ Bus Tracking URLs
     path('track-bus/', views.track_bus, name='track_bus'),
-
-    # Bus Tracking API URLs
     path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='update_bus_location'),
     path('api/bus/<int:bus_id>/location/', views.get_bus_location, name='get_bus_location'),
     path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
-
     path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
-]
 
 
+    # ==================== CHAT SYSTEM URLs ====================
+    path('chat/', views.chat_list, name='chat_list'),
+    path('chat/<int:room_id>/', views.chat_room, name='chat_room'),
+    path('chat/start/', views.start_chat, name='start_chat'),
+    path('chat/send/<int:room_id>/', views.send_chat_message, name='send_chat_message'),
+    path('chat/messages/<int:room_id>/', views.get_chat_messages, name='get_chat_messages'),
+    path('chat/close/<int:room_id>/', views.close_chat, name='close_chat'),
 
 
-# ==================== EMERGENCY URLs ====================
-path('emergency/', views.emergency_page, name='emergency'),
-path('send-emergency/', views.send_emergency_alert, name='send_emergency'),
-path('emergency-status/<int:alert_id>/', views.emergency_status, name='emergency_status'),
-path('emergency-history/', views.emergency_history, name='emergency_history'),
-path('driver-emergency/', views.driver_emergency, name='driver_emergency'),
+    # ==================== DRIVER MODULE URLs ====================
+    # ✅ FIXED: Changed to use unified login
+    path('driver/login/', views.login_page, name='driver_login'),  # ✅ Now uses same login page
+    path('driver/login/submit/', views.driver_login, name='driver_login_submit'),
+    path('driver/logout/', views.driver_logout, name='driver_logout'),
+    path('driver/dashboard/', views.driver_dashboard, name='driver_dashboard'),
+    path('driver/profile/', views.driver_profile, name='driver_profile'),
+    path('driver/trip/<int:trip_id>/', views.trip_detail, name='trip_detail'),
+    path('driver/trip/<int:trip_id>/start/', views.start_trip, name='start_trip'),
+    path('driver/trip/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
+    path('driver/stop/<int:stop_id>/update/', views.update_stop_status, name='update_stop_status'),
 
-# Admin emergency URLs
-path('admin_page/emergency/', views_admin.admin_emergency_dashboard, name='admin_emergency'),
-path('admin_page/acknowledge-alert/<int:alert_id>/', views_admin.admin_acknowledge_alert, name='admin_acknowledge_alert'),
-path('admin_page/resolve-alert/<int:alert_id>/', views_admin.admin_resolve_alert, name='admin_resolve_alert'),
-path('admin_page/add-emergency-contact/', views_admin.admin_add_emergency_contact, name='add_emergency_contact'),
-path('admin_page/delete-emergency-contact/<int:contact_id>/', views_admin.admin_delete_emergency_contact, name='delete_emergency_contact'),
+    # ✅ Driver Emergency Alert & Passenger API
+    path('driver/api/send-alert/', views.driver_send_alert, name='driver_send_alert'),
+    path('driver/api/passengers/', views.driver_get_passengers, name='driver_get_passengers'),
 
 
+#payment
 
 
-# ==================== PAYMENT URLs ====================
-path('payments/', views.payment_page, name='payments'),
+    path('payments/', views.payment_page, name='payments'),
 path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
 path('payment-history/', views.payment_history, name='payment_history'),
 path('payment-success/<str:transaction_id>/', views.payment_success, name='payment_success'),
-path('invoice/<str:transaction_id>/', views.invoice_download, name='invoice_download'),
+]
