@@ -1,12 +1,11 @@
-﻿# Import Django URL utilities and view modules
-from django.urls import path
+﻿from django.urls import path
 from . import views, views_admin
 
-# Define URL patterns for the application
+
 urlpatterns = [
     # ================= AUTH & HOME =================
     path('', views.homepage, name='homepage'),
-    path('login/', views.login_page, name='login_page'),  # ✅ Unified login for all
+    path('login/', views.login_page, name='login_page'),
     path('api/login/', views.login_user, name='login_user'),
     path('register/', views.register_page, name='register_page'),
     path('api/register/', views.register_user, name='register_user'),
@@ -30,7 +29,7 @@ urlpatterns = [
     path('edit-profile/', views.edit_profile, name='edit_profile'),
     path('change-password/', views.change_password, name='change_password'),
     path('renew-pass/', views.renew_pass, name='renew_pass'),
-    
+
     # ================= STANDARD BOOKING & TICKETS =================
     path('book-ticket/<int:schedule_id>/', views.book_ticket, name='book_ticket'),
     path('my-bookings/', views.my_bookings, name='my_bookings'),
@@ -43,27 +42,30 @@ urlpatterns = [
     path('confirm-booking/', views.confirm_booking, name='confirm_booking'),
     path('booking-confirmation/<str:booking_id>/', views.booking_confirmation, name='booking_confirmation'),
     path('bus-schedule/', views.bus_schedule, name='bus_schedule'),
-    
+
     # ================= 2-STEP BOOKING SYSTEM =================
     path('trip-summary/<int:schedule_id>/', views.trip_summary, name='trip_summary'),
     path('seat-selection/<int:schedule_id>/', views.seat_selection, name='seat_selection'),
     path('confirm-booking-seat/', views.confirm_booking_seat, name='confirm_booking_seat'),
-    path('booking-confirmation-seat/<str:booking_id>/', views.booking_confirmation_seat, name='booking_confirmation_seat'),
+    path('booking-confirmation-seat/<str:booking_id>/', views.booking_confirmation_seat,
+         name='booking_confirmation_seat'),
 
     # ================= ADMIN DASHBOARD & MANAGEMENT =================
     path('admin_page/dashboard/', views_admin.admin_dashboard, name='admin_dashboard'),
-    
-    # Admin Users Management URLs
+
+    # Admin Users Management
     path('admin_page/users/', views_admin.admin_users, name='admin_users'),
     path('admin_page/api/delete-user/<int:user_id>/', views_admin.admin_delete_user, name='admin_delete_user'),
-    path('admin_page/api/update-booking/<int:booking_id>/', views_admin.admin_update_booking_status, name='admin_update_booking'),
+    path('admin_page/api/update-booking/<int:booking_id>/', views_admin.admin_update_booking_status,
+         name='admin_update_booking'),
 
-    # Admin Bookings Management URLs
+    # Admin Bookings Management
     path('admin_page/bookings/', views_admin.admin_bookings, name='admin_bookings'),
-    path('admin_page/bookings/<str:booking_id>/approve/', views_admin.admin_approve_booking, name='admin_approve_booking'),
+    path('admin_page/bookings/<str:booking_id>/approve/', views_admin.admin_approve_booking,
+         name='admin_approve_booking'),
     path('admin_page/bookings/<str:booking_id>/reject/', views_admin.admin_reject_booking, name='admin_reject_booking'),
-    
-    # Admin Fleet Management URLs
+
+    # Admin Fleet Management
     path('admin_page/fleet/', views_admin.admin_fleet, name='admin_fleet'),
     path('admin_page/api/get-bus/<int:bus_id>/', views_admin.admin_get_bus, name='admin_get_bus'),
     path('admin_page/api/get-buses/', views_admin.admin_get_buses, name='admin_get_buses'),
@@ -71,8 +73,8 @@ urlpatterns = [
     path('admin_page/api/update-bus/<int:bus_id>/', views_admin.admin_update_bus, name='admin_update_bus'),
     path('admin_page/api/toggle-bus/<int:bus_id>/', views_admin.admin_toggle_bus_status, name='admin_toggle_bus'),
     path('admin_page/api/delete-bus/<int:bus_id>/', views_admin.admin_delete_bus, name='admin_delete_bus'),
-    
-    # ✅ NEW: Admin Routes & Schedules Management URLs
+
+    # Admin Routes Management
     path('admin_page/routes/', views_admin.admin_routes, name='admin_routes'),
     path('admin_page/api/add-route/', views_admin.admin_add_route, name='admin_add_route'),
     path('admin_page/api/route/<int:route_id>/', views_admin.admin_route_detail, name='admin_route_detail'),
@@ -80,49 +82,46 @@ urlpatterns = [
     path('admin_page/api/delete-route/<int:route_id>/', views_admin.admin_delete_route, name='admin_delete_route'),
     path('admin_page/api/get-routes/', views_admin.admin_get_routes, name='admin_get_routes'),
     path('admin_page/api/get-route/<int:route_id>/', views_admin.admin_get_route, name='admin_get_route'),
-    path('admin_page/api/toggle-route/<int:route_id>/', views_admin.admin_toggle_route_status, name='admin_toggle_route'),
-    
-    # ✅ NEW: Schedule Management URLs
+    path('admin_page/api/toggle-route/<int:route_id>/', views_admin.admin_toggle_route_status,
+         name='admin_toggle_route'),
+
+    # Admin Schedule Management
     path('admin_page/schedule/', views_admin.admin_schedule, name='admin_schedule'),
     path('admin_page/api/schedule/<int:schedule_id>/', views_admin.admin_get_schedule, name='admin_get_schedule'),
     path('admin_page/api/add-schedule/', views_admin.admin_add_schedule, name='admin_add_schedule'),
-    path('admin_page/api/update-schedule/<int:schedule_id>/', views_admin.admin_update_schedule, name='admin_update_schedule'),
-    path('admin_page/api/toggle-schedule/<int:schedule_id>/', views_admin.admin_toggle_schedule_status, name='admin_toggle_schedule'),
-    path('admin_page/api/delete-schedule/<int:schedule_id>/', views_admin.admin_delete_schedule, name='admin_delete_schedule'),
-    
-    # Admin Analytics & System URLs
+    path('admin_page/api/update-schedule/<int:schedule_id>/', views_admin.admin_update_schedule,
+         name='admin_update_schedule'),
+    path('admin_page/api/toggle-schedule/<int:schedule_id>/', views_admin.admin_toggle_schedule_status,
+         name='admin_toggle_schedule'),
+    path('admin_page/api/delete-schedule/<int:schedule_id>/', views_admin.admin_delete_schedule,
+         name='admin_delete_schedule'),
+
+    # Admin Analytics & System
     path('admin_page/revenue/', views_admin.admin_revenue, name='admin_revenue'),
     path('admin_page/alerts/', views_admin.admin_alerts, name='admin_alerts'),
     path('admin_page/notifications/', views_admin.admin_notifications, name='admin_notifications'),
     path('admin_page/api/send-notification/', views_admin.send_notification_api, name='send_notification_api'),
     path('admin_page/api/resolve-alert/<int:alert_id>/', views_admin.resolve_alert_api, name='resolve_alert_api'),
 
-    # ✅ Bus Tracking URLs
-    path('track-bus/', views.track_bus, name='track_bus'),
-    path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='update_bus_location'),
-    path('api/bus/<int:bus_id>/location/', views.get_bus_location, name='get_bus_location'),
-    path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
-    path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
+    # Admin Chat URLs
+    path('admin_page/chat/', views_admin.admin_chat_list, name='admin_chat'),
+    path('admin_page/api/chat/rooms/', views_admin.admin_get_chat_rooms_api, name='admin_get_chat_rooms'),
+    path('admin_page/api/chat/send/<int:room_id>/', views_admin.admin_send_chat_message,
+         name='admin_send_chat_message'),
+    path('admin_page/api/chat/messages/<int:room_id>/', views_admin.admin_get_chat_messages_api,
+         name='admin_get_chat_messages'),
+    path('admin_page/api/chat/create/', views_admin.admin_create_chat_room, name='admin_create_chat_room'),
 
-
-    # ==================== CHAT SYSTEM URLs ====================
-    path('chat/', views.chat_list, name='chat_list'),
+    # ================= CHAT SYSTEM URLs (FIXED) =================
+    # User Chat - User views their chat list and rooms
+    path('chat/', views.chat_list, name='chat_list'),  # FIXED: was 'user_chat', now 'chat_list'
     path('chat/<int:room_id>/', views.chat_room, name='chat_room'),
-    path('chat/start/', views.start_chat, name='start_chat'),
-    path('chat/send/<int:room_id>/', views.send_chat_message, name='send_chat_message'),
-    path('chat/messages/<int:room_id>/', views.get_chat_messages, name='get_chat_messages'),
-    path('chat/close/<int:room_id>/', views.close_chat, name='close_chat'),
-    
-    # Driver Chat URLs
-    path('driver/api/chat-rooms/', views.driver_get_chat_rooms, name='driver_get_chat_rooms'),
-    path('driver/api/chat/send/<int:room_id>/', views.driver_send_chat_message, name='driver_send_chat_message'),
-    path('driver/api/chat/messages/<int:room_id>/', views.driver_get_chat_messages, name='driver_get_chat_messages'),
-    path('driver/api/chat/mark-read/<int:room_id>/', views.driver_mark_chat_read, name='driver_mark_chat_read'),
-    path('driver/chat/start/<str:booking_id>/', views.driver_start_chat, name='driver_start_chat'),
-    path('driver/chat/<int:room_id>/', views.chat_room, name='driver_chat_room'),  # Reuse existing chat_room view but add permission check
+    path('chat/<int:room_id>/send/', views.send_chat_message, name='send_chat_message'),
+    path('chat/<int:room_id>/messages/', views.get_chat_messages, name='get_chat_messages'),
+    path('chat/start/<str:booking_id>/', views.start_chat, name='start_chat'),
+    path('chat/<int:room_id>/close/', views.close_chat, name='close_chat'),
 
-    # ==================== DRIVER MODULE URLs ====================
-
+    # ================= DRIVER MODULE URLs =================
     # Authentication
     path('driver/login/', views.login_page, name='driver_login'),
     path('driver/login/submit/', views.driver_login, name='driver_login_submit'),
@@ -138,25 +137,35 @@ urlpatterns = [
     path('driver/trip/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
     path('driver/stop/<int:stop_id>/update/', views.update_stop_status, name='update_stop_status'),
 
-    # API Endpoints
+    # Driver API Endpoints
     path('driver/api/send-alert/', views.driver_send_alert, name='driver_send_alert'),
     path('driver/api/passengers/', views.driver_get_passengers, name='driver_get_passengers'),
-
     path('driver/api/trips/', views.driver_trips_api, name='driver_trips_api'),
     path('driver/api/routes/', views.driver_routes_api, name='driver_routes_api'),
     path('driver/api/schedules/', views.driver_schedules_api, name='driver_schedules_api'),
 
+    # Driver Chat API
+    path('driver/api/chat-rooms/', views.driver_get_chat_rooms, name='driver_get_chat_rooms'),
+    path('driver/api/chat/send/<int:room_id>/', views.driver_send_chat_message, name='driver_send_chat_message'),
+    path('driver/api/chat/messages/<int:room_id>/', views.driver_get_chat_messages, name='driver_get_chat_messages'),
+    path('driver/api/chat/mark-read/<int:room_id>/', views.driver_mark_chat_read, name='driver_mark_chat_read'),
+    path('driver/chat/start/<str:booking_id>/', views.driver_start_chat, name='driver_start_chat'),
+    path('driver/chat/<int:room_id>/', views.chat_room, name='driver_chat_room'),  # Uses same chat_room view
 
+    # ================= BUS TRACKING URLs =================
+    path('track-bus/', views.track_bus, name='track_bus'),
+    path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='update_bus_location'),
+    path('api/bus/<int:bus_id>/location/', views.get_bus_location, name='get_bus_location'),
+    path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
+    path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
 
-#payment
-
-
+    # ================= PAYMENT URLs =================
     path('payments/', views.payment_page, name='payments'),
     path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
     path('payment-history/', views.payment_history, name='payment_history'),
     path('payment-success/<str:transaction_id>/', views.payment_success, name='payment_success'),
 
-
+    # ================= EMERGENCY URLs =================
     path('emergency/', views.emergency_page, name='emergency'),
     path('send-emergency/', views.send_emergency_alert, name='send_emergency'),
     path('emergency-history/', views.emergency_history, name='emergency_history'),

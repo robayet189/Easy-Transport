@@ -19,11 +19,13 @@ from django.urls import reverse
 from .models import (
     UserProfile, Route, Bus, Schedule, Booking, BusLocation,
     Driver, Trip, TripStop, VehicleIssue, Alert, Notification,
-    ChatRoom, ChatMessage
+    ChatRoom, ChatMessage, EmergencyAlert, EmergencyContact,
+    PaymentMethod, PaymentTransaction, UserPass
 )
 import json, random, string, re
 from datetime import datetime, timedelta
 from django.db.models import Sum, Q, Count
+
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -34,6 +36,7 @@ def is_ajax(request):
     """
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
+
 
 def get_profile_context(user):
     """
@@ -52,19 +55,109 @@ def get_profile_context(user):
         'pass_id': getattr(profile, 'pass_id', None) or 'No pass',
     }
 
+
+def get_other_participant(room, current_user):
+    """Get the other participant in the chat for display"""
+    if room.user and room.user != current_user:
+        return {'name': room.user.get_full_name() or room.user.username, 'type': 'user'}
+    elif room.driver and room.driver.user != current_user:
+        return {'name': room.driver.user.get_full_name() or room.driver.user.username, 'type': 'driver'}
+    elif room.admin and room.admin != current_user:
+        return {'name': room.admin.get_full_name() or room.admin.username, 'type': 'admin'}
+    return None
+
+
+def create_chat_notification(room, message, sender):
+    """Create notification for other participants in the chat"""
+    recipients = []
+    if room.user and room.user != sender:
+        recipients.append(room.user)
+    if room.driver and room.driver.user != sender:
+        recipients.append(room.driver.user)
+    if room.admin and room.admin != sender:
+        recipients.append(room.admin)
+
+    for recipient in recipients:
+        Notification.objects.create(
+            type='system',
+            title=f'New message from {sender.get_full_name() or sender.username}',
+            message=message.message[:100],
+            related_user=recipient,
+            is_read=False
+        )
+
+
+def ensure_chat_room_for_booking(booking):
+    """Helper function to ensure a chat room exists for a booking"""
+    from .models import Trip, ChatRoom, ChatMessage
+
+    # Check if chat room already exists
+    existing_room = ChatRoom.objects.filter(booking=booking).first()
+    if existing_room:
+        return existing_room
+
+    # Find the driver for this booking's schedule
+    schedule = booking.schedule
+
+    # Try to find trip (if admin assigned driver)
+    trip = Trip.objects.filter(
+        route=schedule.route,
+        travel_date=schedule.travel_date,
+        departure_time=schedule.departure_time
+    ).first()
+
+    driver = trip.driver if trip else None
+
+    # Get admin user (first superuser or staff)
+    admin_user = User.objects.filter(is_superuser=True).first()
+    if not admin_user:
+        admin_user = User.objects.filter(is_staff=True).first()
+
+    # Create chat room
+    chat_room = ChatRoom.objects.create(
+        user=booking.user,
+        driver=driver,
+        admin=admin_user,
+        booking=booking,
+        room_type='booking',
+        is_active=True
+    )
+
+    # Add welcome message
+    welcome_msg = f"🎫 Chat room created for your booking #{booking.booking_id}. "
+    if driver:
+        welcome_msg += f"Driver {driver.user.get_full_name() or driver.user.username} has been notified."
+    else:
+        welcome_msg += "Admin will assist you with your trip."
+
+    ChatMessage.objects.create(
+        room=chat_room,
+        sender=admin_user if admin_user else booking.user,
+        message=welcome_msg,
+        message_type='system'
+    )
+
+    print(
+        f"✅ Chat room created for booking {booking.booking_id} with driver {driver.user.username if driver else 'None'}")
+    return chat_room
+
+
 # ==================== AUTH & PAGES ====================
 
 def homepage(request):
     """Render the homepage template"""
     return render(request, 'app1/Homepage.html')
 
+
 def register_page(request):
     """Render the user registration page template"""
     return render(request, 'app1/register.html')
 
+
 def login_page(request):
     """Render the user login page template"""
     return render(request, 'app1/login.html')
+
 
 def account_created_page(request):
     """Render the account creation success page template"""
@@ -121,12 +214,9 @@ def register_user(request):
         if user_type == 'driver':
             unique_license = f"DL-{timezone.now().strftime('%Y%m%d')}-{random.randint(10000, 99999)}-{user.id}"
 
-            # ✅ NEW: Get a default route and bus for new drivers
-            # You can customize which route/bus to assign
             default_route = Route.objects.first()
             default_bus = Bus.objects.first()
 
-            # If no default route/bus exists, try to get any route/bus
             if not default_route:
                 default_route = Route.objects.first()
             if not default_bus:
@@ -143,10 +233,9 @@ def register_user(request):
                     is_approved=True,
                     is_active=True,
                     assigned_route=default_route,
-                    assigned_bus=default_bus  
+                    assigned_bus=default_bus
                 )
 
-                # Log the assignment for debugging
                 if default_route:
                     print(f"✅ New driver {username} assigned to route: {default_route.code}")
                 else:
@@ -167,6 +256,7 @@ def register_user(request):
         print(f"Registration error: {str(e)}")
         return JsonResponse({'success': False, 'message': f'Registration failed: {str(e)}'}, status=500)
 
+
 @require_http_methods(["POST"])
 def login_user(request):
     """
@@ -175,12 +265,12 @@ def login_user(request):
     """
     username_or_email = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
-    
+
     if not username_or_email or not password:
         return JsonResponse({'success': False, 'message': 'Please enter username/email and password'}, status=400)
-    
+
     user = None
-    
+
     if '@' in username_or_email:
         try:
             user_obj = User.objects.get(email__iexact=username_or_email)
@@ -189,11 +279,11 @@ def login_user(request):
             user = None
     else:
         user = authenticate(request, username=username_or_email, password=password)
-    
+
     if user is not None:
         login(request, user)
         redirect_url = '/dashboard/'
-        
+
         try:
             if hasattr(user, 'profile'):
                 user_type = user.profile.user_type.lower()
@@ -207,18 +297,20 @@ def login_user(request):
                 redirect_url = '/driver/dashboard/'
         except Exception:
             redirect_url = '/dashboard/'
-        
+
         full_name = user.get_full_name() or user.username
         msg = f'Welcome back Admin, {full_name}!' if 'admin' in redirect_url else f'Welcome back, {full_name}!'
         return JsonResponse({'success': True, 'message': msg, 'redirect_url': redirect_url})
-    
+
     return JsonResponse({'success': False, 'message': 'Invalid username/email or password'}, status=401)
+
 
 def logout_user(request):
     """Handle user logout and redirect to homepage"""
     logout(request)
     messages.success(request, 'Logged out successfully')
     return redirect('homepage')
+
 
 # ==================== PASSWORD RESET & EMAIL VERIFICATION ====================
 
@@ -249,9 +341,11 @@ def forgot_password(request):
         return redirect('forgot_password_success')
     return render(request, 'app1/forgot_password.html')
 
+
 def forgot_password_success(request):
     """Show success page after password reset request"""
     return render(request, 'app1/forgot_password_success.html')
+
 
 def password_reset_confirm_view(request, uidb64, token):
     """Handle password reset confirmation with new password"""
@@ -277,9 +371,11 @@ def password_reset_confirm_view(request, uidb64, token):
     else:
         return render(request, 'app1/password_reset_confirm.html', {'valid': False})
 
+
 def password_reset_success(request):
     """Show success page after password is reset"""
     return render(request, 'app1/password_reset_success.html')
+
 
 def send_verification_email(user):
     """Send verification email (console backend for development)"""
@@ -291,11 +387,13 @@ def send_verification_email(user):
     recipient_list = [user.email]
     send_mail(subject, message, from_email, recipient_list, fail_silently=True)
 
+
 @require_http_methods(["GET"])
 def verify_email(request, token):
     """Verify user email with token"""
     messages.success(request, 'Email verified successfully! Please login.')
     return redirect('login_page')
+
 
 @require_http_methods(["POST"])
 def resend_verification_email(request):
@@ -307,6 +405,7 @@ def resend_verification_email(request):
         return JsonResponse({'success': True, 'message': 'Verification email resent!'})
     except User.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'No account found with this email'}, status=400)
+
 
 @require_http_methods(["POST"])
 def password_reset_request(request):
@@ -320,26 +419,44 @@ def password_reset_request(request):
     except User.DoesNotExist:
         return JsonResponse({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
+
 # ==================== DASHBOARD & SCHEDULE ====================
 
 @login_required
 def dashboard(request):
-    """Render user dashboard with booking history and pass status"""
+    """Render user dashboard with booking history and chat rooms"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     today = timezone.now().date()
+
     upcoming_bookings = Booking.objects.filter(
         user=user, status='confirmed', schedule__travel_date__gte=today
-    ).select_related('schedule__route', 'schedule__bus').order_by('schedule__travel_date', 'schedule__departure_time')[:5]
+    ).select_related('schedule__route', 'schedule__bus').order_by('schedule__travel_date', 'schedule__departure_time')[
+        :5]
+
     past_bookings = Booking.objects.filter(
         user=user, status='confirmed', schedule__travel_date__lt=today
     ).select_related('schedule__route', 'schedule__bus').order_by('-schedule__travel_date')[:3]
+
     total_bookings = Booking.objects.filter(user=user, status='confirmed').count()
+    approved_bookings = Booking.objects.filter(user=user, status='approved').count()
+    pending_bookings = Booking.objects.filter(user=user, status='pending').count()
     total_spent = Booking.objects.filter(user=user, status='confirmed').aggregate(total=Sum('amount'))['total'] or 0
-    # PaymentTransaction থেকে total_spent নিতে চাইলে নিচের লাইন যোগ করতে পারেন, কিন্তু একাধিক বার total_spent নির্ধারণ করবেন না।
-    # total_spent = PaymentTransaction.objects.filter(user=request.user, status='completed').aggregate(total=Sum('amount'))['total'] or 0
-    has_active_pass = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).exists()
-    
+
+    active_chat_rooms = ChatRoom.objects.filter(
+        user=user,
+        is_active=True
+    ).select_related('driver__user', 'admin').order_by('-updated_at')
+
+    for room in active_chat_rooms:
+        room.unread_count = ChatMessage.objects.filter(
+            room=room,
+            is_read=False
+        ).exclude(sender=user).count()
+    total_unread = 0
+    for room in active_chat_rooms:
+        total_unread += room.unread_count
+
     context = {
         'first_name': user.first_name,
         'pass_status': 'Active' if profile.is_pass_active else 'Inactive',
@@ -347,20 +464,27 @@ def dashboard(request):
         'upcoming_bookings': upcoming_bookings,
         'past_bookings': past_bookings,
         'total_bookings': total_bookings,
+        'approved_bookings': approved_bookings,
+        'pending_bookings': pending_bookings,
         'total_spent': total_spent,
-        'user_total_spent': total_spent,
-        'has_active_pass': has_active_pass,
+        'my_bookings': Booking.objects.filter(user=user).order_by('-booking_date')[:10],
+        'active_chat_rooms': active_chat_rooms,
+        'total_unread': total_unread,
     }
+
     if is_ajax(request):
         return render(request, 'app1/partials/dashboard_content.html', context)
     return render(request, 'app1/dashboard.html', context)
+
 
 @login_required
 def schedule(request):
     """Render transport schedule page with filtering options"""
     try:
         today = timezone.now().date()
-        routes = Schedule.objects.filter(is_active=True, travel_date__gte=today).select_related('route', 'bus').order_by('travel_date', 'departure_time')
+        routes = Schedule.objects.filter(is_active=True, travel_date__gte=today).select_related('route',
+                                                                                                'bus').order_by(
+            'travel_date', 'departure_time')
         morning_routes = routes.filter(departure_time__hour__lt=12)
         evening_routes = routes.filter(departure_time__hour__gte=12)
         context = {'routes': routes, 'morning_routes': morning_routes, 'evening_routes': evening_routes}
@@ -369,6 +493,7 @@ def schedule(request):
         return render(request, 'app1/schedule.html', context)
     except Exception as e:
         return render(request, 'app1/schedule.html', {'routes': [], 'error': str(e)})
+
 
 @login_required
 def schedule_details(request, schedule_id):
@@ -385,6 +510,7 @@ def schedule_details(request, schedule_id):
             'available_seats': schedule.available_seats,
         }
     })
+
 
 # ==================== PROFILE & EDIT PROFILE ====================
 
@@ -412,6 +538,7 @@ def profile(request):
         return render(request, 'app1/partials/profile_content.html', context)
     return render(request, 'app1/profile.html', context)
 
+
 @login_required
 def edit_profile(request):
     """Handle user profile editing with form validation"""
@@ -432,6 +559,7 @@ def edit_profile(request):
     if is_ajax(request):
         return render(request, 'app1/partials/edit_profile_content.html', context)
     return render(request, 'app1/edit_profile.html', context)
+
 
 @login_required
 def change_password(request):
@@ -459,6 +587,7 @@ def change_password(request):
         return redirect('profile')
     return redirect('profile')
 
+
 @login_required
 def renew_pass(request):
     """Handle transport pass renewal with 30-day extension"""
@@ -476,6 +605,7 @@ def renew_pass(request):
             return render(request, 'app1/partials/profile_content.html', get_profile_context(user))
         return redirect('profile')
     return redirect('profile')
+
 
 # ==================== BOOKING SYSTEM ====================
 
@@ -513,41 +643,11 @@ def book_ticket(request, schedule_id):
             schedule.available_seats -= number_of_seats
             schedule.save()
 
-            # ✅ ========== CREATE CHAT ROOM ==========
+            # ✅ CREATE CHAT ROOM
             try:
-                from .models import Trip, ChatRoom, ChatMessage
-
-                trip = Trip.objects.filter(
-                    route=schedule.route,
-                    travel_date=schedule.travel_date,
-                    departure_time=schedule.departure_time
-                ).first()
-
-                if trip and trip.driver:
-                    admin_user = User.objects.filter(is_superuser=True).first()
-
-                    existing_room = ChatRoom.objects.filter(booking=booking).first()
-
-                    if not existing_room:
-                        chat_room = ChatRoom.objects.create(
-                            user=request.user,
-                            driver=trip.driver,
-                            admin=admin_user,
-                            booking=booking,
-                            is_active=True
-                        )
-
-                        ChatMessage.objects.create(
-                            room=chat_room,
-                            sender=admin_user if admin_user else request.user,
-                            message=f"🎫 Chat room created for your booking #{booking.booking_id}. You can message the driver here.",
-                            message_type='system'
-                        )
-
-                        print(f"✅ Chat room created for booking {booking.booking_id}")
+                ensure_chat_room_for_booking(booking)
             except Exception as e:
                 print(f"❌ Error creating chat room: {e}")
-            # ========== END CHAT ROOM CREATION ==========
 
             return JsonResponse({
                 'success': True, 'booking_id': booking.booking_id,
@@ -566,6 +666,7 @@ def book_ticket(request, schedule_id):
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
+
 @login_required
 def my_bookings(request):
     """Display user's booking history with summary statistics"""
@@ -579,6 +680,7 @@ def my_bookings(request):
         return render(request, 'app1/partials/bookings_content.html', context)
     return render(request, 'app1/my_bookings.html', context)
 
+
 @login_required
 def booking_detail(request, booking_id):
     """Display detailed information for a specific booking"""
@@ -587,6 +689,7 @@ def booking_detail(request, booking_id):
     if is_ajax(request):
         return render(request, 'app1/partials/booking_detail_content.html', context)
     return render(request, 'app1/booking_detail.html', context)
+
 
 @login_required
 def cancel_booking(request, booking_id):
@@ -601,8 +704,10 @@ def cancel_booking(request, booking_id):
             schedule.save()
             booking.status = 'cancelled'
             booking.save()
-            return JsonResponse({'success': True, 'message': 'Booking cancelled successfully', 'refund_amount': f"৳{booking.amount}"})
+            return JsonResponse(
+                {'success': True, 'message': 'Booking cancelled successfully', 'refund_amount': f"৳{booking.amount}"})
     return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+
 
 @login_required
 def check_seat_availability(request, schedule_id):
@@ -613,6 +718,7 @@ def check_seat_availability(request, schedule_id):
         'total_seats': schedule.bus.capacity if schedule.bus else 40,
         'fare': float(schedule.fare)
     })
+
 
 # ==================== BUS BOOKING FUNCTIONS ====================
 
@@ -626,6 +732,7 @@ def select_seats(request, schedule_id):
         'schedule': schedule, 'rows': range(5), 'seats_per_row': range(8), 'booked_seats': booked_seat_list,
     }
     return render(request, 'app1/select_seats.html', context)
+
 
 @login_required
 def confirm_booking(request):
@@ -647,9 +754,17 @@ def confirm_booking(request):
         )
         schedule.available_seats -= 1
         schedule.save()
+
+        # ✅ CREATE CHAT ROOM
+        try:
+            ensure_chat_room_for_booking(booking)
+        except Exception as e:
+            print(f"❌ Error creating chat room: {e}")
+
         messages.success(request, f'Booking confirmed! ID: {booking.booking_id}')
         return redirect('booking_confirmation', booking_id=booking.booking_id)
     return redirect('schedule')
+
 
 @login_required
 def booking_confirmation(request, booking_id):
@@ -657,9 +772,11 @@ def booking_confirmation(request, booking_id):
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation.html', {'booking': booking})
 
+
 def bus_schedule(request):
     """Render bus schedule overview page"""
     return render(request, 'app1/bus_schedule.html')
+
 
 # ==================== 2-STEP BOOKING SYSTEM ====================
 
@@ -678,6 +795,7 @@ def trip_summary(request, schedule_id):
         }
     }
     return render(request, 'app1/trip_summary.html', context)
+
 
 @login_required
 def seat_selection(request, schedule_id):
@@ -704,77 +822,46 @@ def seat_selection(request, schedule_id):
 def confirm_booking_seat(request):
     """Process 2-step booking confirmation with seat selection"""
     if request.method == 'POST':
-        schedule_id = request.POST.get('schedule_id')
-        seat_number = request.POST.get('seat_number')
-        passenger_name = request.POST.get('passenger_name')
-        passenger_phone = request.POST.get('passenger_phone')
-        schedule = get_object_or_404(Schedule, id=schedule_id)
-        total_amount = schedule.fare
-
-        booking = Booking.objects.create(
-            user=request.user, schedule=schedule,
-            seat_number=seat_number,
-            amount=total_amount,
-            passenger_name=passenger_name,
-            payment_method='cash',
-            status='confirmed'
-        )
-
-        schedule.available_seats -= 1
-        schedule.save()
-
-        # ✅ ========== CREATE CHAT ROOM AUTOMATICALLY ==========
         try:
-            # Find the driver assigned to this schedule/trip
-            from .models import Trip, ChatRoom, ChatMessage
+            schedule_id = request.POST.get('schedule_id')
+            seat_number = request.POST.get('seat_number')
+            passenger_name = request.POST.get('passenger_name')
+            passenger_phone = request.POST.get('passenger_phone')
+            schedule = get_object_or_404(Schedule, id=schedule_id)
+            total_amount = schedule.fare
 
-            # Find the trip for this schedule
-            trip = Trip.objects.filter(
-                route=schedule.route,
-                travel_date=schedule.travel_date,
-                departure_time=schedule.departure_time
-            ).first()
+            booking = Booking.objects.create(
+                user=request.user, schedule=schedule,
+                seat_number=seat_number,
+                amount=total_amount,
+                passenger_name=passenger_name,
+                payment_method='cash',
+                status='confirmed'
+            )
 
-            if trip and trip.driver:
-                # Get admin user (first superuser)
-                admin_user = User.objects.filter(is_superuser=True).first()
+            schedule.available_seats -= 1
+            schedule.save()
 
-                # Check if chat room already exists for this booking
-                existing_room = ChatRoom.objects.filter(booking=booking).first()
+            # ✅ CREATE CHAT ROOM
+            try:
+                chat_room = ensure_chat_room_for_booking(booking)
+                print(f"✅ Chat room created: {chat_room.id}")
+            except Exception as e:
+                print(f"❌ Error creating chat room: {e}")
+                import traceback
+                traceback.print_exc()
 
-                if not existing_room:
-                    # Create new chat room
-                    chat_room = ChatRoom.objects.create(
-                        user=request.user,  # Passenger
-                        driver=trip.driver,  # Assigned driver
-                        admin=admin_user,  # Admin
-                        booking=booking,  # Link to booking
-                        is_active=True
-                    )
-
-                    # Add system welcome message
-                    ChatMessage.objects.create(
-                        room=chat_room,
-                        sender=admin_user if admin_user else request.user,
-                        message=f"🎫 Chat room created for your booking #{booking.booking_id}. You can message the driver here.",
-                        message_type='system'
-                    )
-
-                    print(
-                        f"✅ Chat room created for booking {booking.booking_id} with driver {trip.driver.user.username}")
-                else:
-                    print(f"ℹ️ Chat room already exists for booking {booking.booking_id}")
-            else:
-                print(f"⚠️ No driver assigned to this schedule. Chat room not created.")
-
+            messages.success(request, f'Booking confirmed! ID: {booking.booking_id}')
+            return redirect('booking_confirmation_seat', booking_id=booking.booking_id)
         except Exception as e:
-            print(f"❌ Error creating chat room: {e}")
-        # ========== END CHAT ROOM CREATION ==========
-
-        messages.success(request, f'Booking confirmed! ID: {booking.booking_id}')
-        return redirect('booking_confirmation_seat', booking_id=booking.booking_id)
+            print(f"Error in confirm_booking_seat: {e}")
+            import traceback
+            traceback.print_exc()
+            messages.error(request, f"Error: {str(e)}")
+            return redirect('schedule')
 
     return redirect('schedule')
+
 
 @login_required
 def booking_confirmation_seat(request, booking_id):
@@ -782,10 +869,12 @@ def booking_confirmation_seat(request, booking_id):
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
 
+
 @login_required
 def track_bus(request):
     """Render real-time bus tracking interface"""
     return render(request, 'app1/track_bus.html')
+
 
 # ==================== BUS TRACKING API (DRF) ====================
 
@@ -793,6 +882,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import BusSerializer, BusLocationSerializer
 from .models import Bus, BusLocation
+
 
 @api_view(['POST'])
 def update_bus_location(request, bus_id):
@@ -807,6 +897,7 @@ def update_bus_location(request, bus_id):
         return Response({"message": "Location updated", "bus_id": bus_id, "lat": lat, "lng": lng})
     except Bus.DoesNotExist:
         return Response({"error": "Bus not found"}, status=404)
+
 
 @api_view(['GET'])
 def get_bus_location(request, bus_id):
@@ -825,6 +916,7 @@ def get_bus_location(request, bus_id):
     except Bus.DoesNotExist:
         return Response({"error": "Bus not found"}, status=404)
 
+
 @api_view(['GET'])
 def get_all_buses_location(request):
     """API endpoint to retrieve all bus locations for map display"""
@@ -841,109 +933,234 @@ def get_all_buses_location(request):
         })
     return Response(data)
 
+
 @login_required
 def track_bus_api(request):
     """Render bus tracking page with all active buses"""
     buses = Bus.objects.filter(is_active=True)
     return render(request, 'app1/track_bus_api.html', {'buses': buses})
 
-# ==================== CHAT SYSTEM VIEWS ====================
+
+# ==================== CHAT SYSTEM VIEWS (COMPLETELY REWRITTEN) ====================
 
 @login_required
 def chat_list(request):
     """Display chat room list based on user role"""
-    if request.user.profile.user_type == 'admin':
-        chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user')
-    else:
-        chat_rooms = ChatRoom.objects.filter(user=request.user, is_active=True)
-    context = {'chat_rooms': chat_rooms, 'is_admin': request.user.profile.user_type == 'admin'}
-    return render(request, 'app1/chat_list.html', context)
+    try:
+        # Debug print
+        print(f"=== CHAT LIST VIEW START ===")
+        print(f"User: {request.user.username}")
+
+        # Get user profile safely
+        try:
+            profile = request.user.profile
+            is_admin = profile.user_type == 'admin'
+            print(f"User type: {profile.user_type}")
+        except UserProfile.DoesNotExist:
+            is_admin = request.user.is_superuser
+            print(f"No profile, is_superuser: {is_admin}")
+
+        # Get chat rooms based on user type
+        if is_admin:
+            chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user', 'driver__user',
+                                                                                'admin').order_by('-updated_at')
+        elif hasattr(request.user, 'driver_profile'):
+            driver = request.user.driver_profile
+            chat_rooms = ChatRoom.objects.filter(driver=driver, is_active=True).select_related('user',
+                                                                                               'admin').order_by(
+                '-updated_at')
+        else:
+            chat_rooms = ChatRoom.objects.filter(user=request.user, is_active=True).select_related('driver__user',
+                                                                                                   'admin').order_by(
+                '-updated_at')
+
+        print(f"Found {chat_rooms.count()} chat rooms")
+
+        # Add unread count and last message to each room
+        for room in chat_rooms:
+            room.unread_count = ChatMessage.objects.filter(
+                room=room,
+                is_read=False
+            ).exclude(sender=request.user).count()
+            room.last_message = room.messages.first()
+            print(f"  Room {room.id}: unread={room.unread_count}, last_msg={room.last_message}")
+
+        total_unread = sum(room.unread_count for room in chat_rooms)
+
+        context = {
+            'chat_rooms': chat_rooms,
+            'is_admin': is_admin,
+            'total_unread': total_unread,
+        }
+
+        print(f"Rendering chat_list.html with {len(chat_rooms)} rooms")
+        return render(request, 'app1/chat_list.html', context)
+
+    except Exception as e:
+        print(f"ERROR in chat_list: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        messages.error(request, f"Error loading chats: {str(e)}")
+        return render(request, 'app1/chat_list.html', {'chat_rooms': [], 'error': str(e)})
+
 
 @login_required
 def chat_room(request, room_id):
-    """Display chat room with message history and real-time updates"""
-    room = get_object_or_404(ChatRoom, id=room_id)
-    if request.user.profile.user_type != 'admin' and room.user != request.user:
-        messages.error(request, 'You do not have permission to view this chat.')
-        return redirect('chat_list')
-    ChatMessage.objects.filter(room=room, is_read=False).exclude(sender=request.user).update(is_read=True)
-    context = {'room': room, 'messages': room.messages.all(), 'is_admin': request.user.profile.user_type == 'admin'}
-    return render(request, 'app1/chat_room.html', context)
+    """Display a specific chat room"""
+    room = get_object_or_404(ChatRoom, id=room_id, is_active=True)
 
-@login_required
-def start_chat(request, booking_id=None):
-    """Create new chat room or redirect to existing one"""
-    if request.method == 'POST':
-        user_id = request.POST.get('user_id')
-        subject = request.POST.get('subject', '')
-        user = get_object_or_404(User, id=user_id)
-        existing_room = ChatRoom.objects.filter(user=user, is_active=True).first()
-        if existing_room:
-            return redirect('chat_room', room_id=existing_room.id)
-        room = ChatRoom.objects.create(user=user, admin=request.user if request.user.profile.user_type == 'admin' else None)
-        ChatMessage.objects.create(room=room, sender=request.user, message=f"📌 New chat started. Subject: {subject}" if subject else "📌 New chat started.")
-        return redirect('chat_room', room_id=room.id)
-    return redirect('chat_list')
+    # Check permission
+    if not room.can_user_access(request.user):
+        messages.error(request, 'You do not have permission to view this chat.')
+        return redirect('dashboard')
+
+    # Mark all messages as read for this user
+    ChatMessage.objects.filter(room=room, is_read=False).exclude(sender=request.user).update(is_read=True)
+
+    # Get user role for template
+    try:
+        profile = request.user.profile
+        user_role = profile.user_type
+    except:
+        user_role = 'user'
+
+    context = {
+        'room': room,
+        'messages': room.messages.all().order_by('created_at'),
+        'user_role': user_role,
+        'other_participant': get_other_participant(room, request.user),
+    }
+
+    return render(request, 'app1/chat.html', context)
+
 
 @login_required
 def send_chat_message(request, room_id):
-    """API endpoint to send chat message with validation"""
-    if request.method == 'POST':
-        room = get_object_or_404(ChatRoom, id=room_id)
-        if request.user.profile.user_type != 'admin' and room.user != request.user:
-            return JsonResponse({'success': False, 'error': 'Permission denied'})
-        message_text = request.POST.get('message', '').strip()
-        if not message_text:
-            return JsonResponse({'success': False, 'error': 'Message cannot be empty'})
-        message = ChatMessage.objects.create(room=room, sender=request.user, message=message_text)
-        room.save()
-        return JsonResponse({
-            'success': True,
-            'message': {
-                'id': message.id,
-                'sender': message.sender.username,
-                'sender_name': message.sender.get_full_name() or message.sender.username,
-                'message': message.message,
-                'time': message.created_at.strftime('%I:%M %p'),
-                'date': message.created_at.strftime('%b %d, %Y'),
-            }
-        })
-    return JsonResponse({'success': False, 'error': 'Invalid request'})
+    """Send a message in a chat room"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+    room = get_object_or_404(ChatRoom, id=room_id)
+
+    # Check permission
+    if not room.can_user_access(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied'})
+
+    message_text = request.POST.get('message', '').strip()
+    if not message_text:
+        return JsonResponse({'success': False, 'error': 'Message cannot be empty'})
+
+    # Create the message
+    message = ChatMessage.objects.create(
+        room=room,
+        sender=request.user,
+        message=message_text,
+        message_type='text'
+    )
+
+    # Update room's updated_at time
+    room.save()
+
+    # Create notification for other participants
+    create_chat_notification(room, message, request.user)
+
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': message.id,
+            'message': message.message,
+            'time': message.created_at.strftime('%I:%M %p'),
+            'date': message.created_at.strftime('%b %d, %Y'),
+            'is_owner': True,
+            'sender_name': message.sender.get_full_name() or message.sender.username,
+        }
+    })
+
 
 @login_required
 def get_chat_messages(request, room_id):
-    """API endpoint to fetch new chat messages for real-time updates"""
+    """Get new messages (AJAX polling)"""
     room = get_object_or_404(ChatRoom, id=room_id)
+
+    # Check permission
+    if not room.can_user_access(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied'})
+
     last_id = request.GET.get('last_id', 0)
-    messages = room.messages.filter(id__gt=last_id)
-    data = {
+    try:
+        last_id = int(last_id)
+    except ValueError:
+        last_id = 0
+
+    # Get new messages
+    messages = room.messages.filter(id__gt=last_id).select_related('sender').order_by('created_at')
+
+    # Mark messages as read
+    messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+
+    # Prepare response
+    messages_data = []
+    for msg in messages:
+        messages_data.append({
+            'id': msg.id,
+            'message': msg.message,
+            'time': msg.created_at.strftime('%I:%M %p'),
+            'date': msg.created_at.strftime('%b %d, %Y'),
+            'is_owner': msg.sender == request.user,
+            'sender_name': msg.sender.get_full_name() or msg.sender.username,
+            'sender_username': msg.sender.username,
+        })
+
+    return JsonResponse({
         'success': True,
-        'messages': [
-            {
-                'id': msg.id,
-                'sender': msg.sender.username,
-                'sender_name': msg.sender.get_full_name() or msg.sender.username,
-                'message': msg.message,
-                'time': msg.created_at.strftime('%I:%M %p'),
-                'is_owner': msg.sender == request.user,
-            }
-            for msg in messages
-        ]
-    }
-    return JsonResponse(data)
+        'messages': messages_data,
+        'last_id': messages.last().id if messages else last_id
+    })
+
+
+@login_required
+def start_chat(request, booking_id=None):
+    """Start a new chat for a booking"""
+    if request.method == 'POST':
+        booking_id = request.POST.get('booking_id') or booking_id
+        if booking_id:
+            booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
+            chat_room = ensure_chat_room_for_booking(booking)
+            return JsonResponse({'success': True, 'room_id': chat_room.id, 'redirect_url': f'/chat/{chat_room.id}/'})
+
+    return JsonResponse({'success': False, 'error': 'Booking ID required'}, status=400)
+
 
 @login_required
 def close_chat(request, room_id):
-    """API endpoint to close chat room (admin only)"""
+    """Close a chat room (admin only)"""
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
-        if request.user.profile.user_type != 'admin':
+
+        # Check if user is admin
+        try:
+            profile = request.user.profile
+            is_admin = profile.user_type == 'admin'
+        except:
+            is_admin = request.user.is_superuser
+
+        if not is_admin:
             return JsonResponse({'success': False, 'error': 'Permission denied'})
+
         room.is_active = False
         room.save()
-        ChatMessage.objects.create(room=room, sender=request.user, message="🔒 This chat has been closed by admin.")
+
+        ChatMessage.objects.create(
+            room=room,
+            sender=request.user,
+            message="🔒 This chat has been closed by admin.",
+            message_type='system'
+        )
+
         return JsonResponse({'success': True, 'message': 'Chat closed successfully'})
+
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
 
 # ==================== DRIVER MODULE VIEWS ====================
 
@@ -952,6 +1169,7 @@ def driver_login_page(request):
     if request.user.is_authenticated and hasattr(request.user, 'driver_profile'):
         return redirect('driver_dashboard')
     return render(request, 'app1/driver/driver_login.html')
+
 
 @require_http_methods(["POST"])
 def driver_login(request):
@@ -965,15 +1183,19 @@ def driver_login(request):
             if driver.is_approved:
                 if driver.is_active:
                     login(request, user)
-                    return JsonResponse({'success': True, 'message': 'Login successful', 'redirect_url': '/driver/dashboard/'})
+                    return JsonResponse(
+                        {'success': True, 'message': 'Login successful', 'redirect_url': '/driver/dashboard/'})
                 else:
-                    return JsonResponse({'success': False, 'message': 'Your account is deactivated. Contact admin.'}, status=403)
+                    return JsonResponse({'success': False, 'message': 'Your account is deactivated. Contact admin.'},
+                                        status=403)
             else:
-                return JsonResponse({'success': False, 'message': 'Your account is pending approval. Contact admin.'}, status=403)
+                return JsonResponse({'success': False, 'message': 'Your account is pending approval. Contact admin.'},
+                                    status=403)
         else:
             return JsonResponse({'success': False, 'message': 'You are not registered as a driver.'}, status=403)
     else:
         return JsonResponse({'success': False, 'message': 'Invalid username or password'}, status=401)
+
 
 # ==================== DRIVER EMERGENCY ALERT & PASSENGER API ====================
 
@@ -983,19 +1205,19 @@ def driver_send_alert(request):
     """API: Driver sends emergency alert - saves to database + creates notification"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
-    
+
     try:
         data = json.loads(request.body)
         message = data.get('message', 'Emergency alert from driver')
         driver = request.user.driver_profile
-        
+
         alert = Alert.objects.create(
             driver=driver,
             alert_type='emergency',
             message=f"🚨 {driver.user.get_full_name()}: {message}",
             location='Current trip location'
         )
-        
+
         Notification.objects.create(
             type='emergency',
             title=f'Emergency Alert - {driver.user.get_full_name()}',
@@ -1003,26 +1225,27 @@ def driver_send_alert(request):
             related_driver=driver,
             is_read=False
         )
-        
+
         return JsonResponse({
-            'success': True, 
-            'message': 'Emergency alert sent to admin!', 
+            'success': True,
+            'message': 'Emergency alert sent to admin!',
             'alert_id': alert.id
         })
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
 
 @login_required
 def driver_get_passengers(request):
     """API: Get REAL passenger list for driver's today trips from Booking model"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'passengers': []})
-    
+
     driver = request.user.driver_profile
     today = timezone.now().date()
-    
+
     trips = Trip.objects.filter(driver=driver, travel_date=today)
-    
+
     passengers = []
     for trip in trips:
         schedule = Schedule.objects.filter(
@@ -1041,7 +1264,7 @@ def driver_get_passengers(request):
                     'id': b.user.profile.institution_id if hasattr(b.user, 'profile') else b.user.username,
                     'stop': schedule.route.end,
                 })
-    
+
     return JsonResponse({'success': True, 'passengers': passengers})
 
 
@@ -1069,21 +1292,19 @@ def driver_dashboard(request):
     ).select_related('route', 'bus').first()
 
     # ========== ROUTES - ONLY driver's assigned route ==========
-    assigned_route = driver.assigned_route  # This is the ONLY route this driver should see
+    assigned_route = driver.assigned_route
 
     # ========== SCHEDULES - ONLY for driver's assigned route ==========
     schedules_for_driver = []
     upcoming_schedules = []
 
     if assigned_route:
-        # Get ONLY schedules for this driver's assigned route
         schedules_for_driver = Schedule.objects.filter(
             route=assigned_route,
             travel_date__gte=today,
             is_active=True
         ).select_related('route', 'bus').order_by('travel_date', 'departure_time')
 
-        # Upcoming schedules (next 7 days) - only for this driver's route
         upcoming_schedules = schedules_for_driver.filter(
             travel_date__lte=today + timedelta(days=7)
         )[:10]
@@ -1117,13 +1338,12 @@ def driver_dashboard(request):
         'passenger_count': passenger_count,
         'trips_completed': trips_completed,
         'today_earnings': today_earnings,
-        # Routes - ONLY the driver's assigned route
-        'assigned_route': assigned_route,  # This is the ONLY route
-        # Schedules - ONLY for driver's assigned route
+        'assigned_route': assigned_route,
         'schedules_for_driver': schedules_for_driver,
         'upcoming_schedules': upcoming_schedules,
     }
     return render(request, 'app1/driver/driver_dashboard.html', context)
+
 
 @login_required
 def driver_profile(request):
@@ -1131,10 +1351,10 @@ def driver_profile(request):
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
-    
+
     driver = request.user.driver_profile
     user = request.user
-    
+
     if request.method == 'POST':
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
@@ -1142,39 +1362,37 @@ def driver_profile(request):
         phone = request.POST.get('phone', '').strip()
         address = request.POST.get('address', '').strip()
         emergency_contact = request.POST.get('emergency_contact', '').strip()
-        
+
         if not phone or not emergency_contact:
             messages.error(request, 'Phone and Emergency Contact are required.')
             return redirect('driver_profile')
-        
+
         if email and not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
             messages.error(request, 'Invalid email format.')
             return redirect('driver_profile')
-        
+
         if email and email != user.email and User.objects.filter(email=email).exclude(pk=user.pk).exists():
             messages.error(request, 'This email is already registered.')
             return redirect('driver_profile')
-        
+
         if first_name: user.first_name = first_name
         if last_name: user.last_name = last_name
         if email: user.email = email
         user.save()
-        
+
         driver.phone = phone
         driver.address = address
         driver.emergency_contact = emergency_contact
         driver.save()
-        
+
         messages.success(request, 'Profile updated successfully!')
         return redirect('driver_dashboard')
-    
+
     return render(request, 'app1/driver/driver_profile.html', {
         'driver': driver,
         'user': user,
     })
 
-
-# Add to views.py
 
 @login_required
 def driver_trips_api(request):
@@ -1217,6 +1435,7 @@ def driver_trips_api(request):
 
     return JsonResponse({'success': True, 'trips': trips_data})
 
+
 @login_required
 def trip_detail(request, trip_id):
     """Display detailed trip information with stop sequence"""
@@ -1227,6 +1446,7 @@ def trip_detail(request, trip_id):
     stops = trip.stops.all().order_by('stop_order')
     context = {'trip': trip, 'stops': stops}
     return render(request, 'app1/driver/trip_detail.html', context)
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -1241,6 +1461,7 @@ def start_trip(request, trip_id):
         return JsonResponse({'success': True, 'message': 'Trip started successfully'})
     else:
         return JsonResponse({'success': False, 'message': 'Trip cannot be started in current status'}, status=400)
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -1325,6 +1546,7 @@ def driver_schedules_api(request):
         'schedules': schedules_data
     })
 
+
 @login_required
 @require_http_methods(["POST"])
 def update_stop_status(request, stop_id):
@@ -1347,6 +1569,7 @@ def update_stop_status(request, stop_id):
     else:
         return JsonResponse({'success': False, 'message': 'Invalid action'}, status=400)
 
+
 @login_required
 def driver_logout(request):
     """Handle driver logout with session cleanup"""
@@ -1357,37 +1580,6 @@ def driver_logout(request):
 
 
 # ==================== DRIVER CHAT API ====================
-# Add this helper function at the top of views.py
-def create_chat_room_for_booking(booking, driver, admin_user=None):
-    """Automatically create a chat room when a booking is confirmed"""
-    from .models import ChatRoom, ChatMessage
-
-    if not admin_user:
-        admin_user = User.objects.filter(is_superuser=True).first()
-
-    # Check if chat room already exists
-    existing_room = ChatRoom.objects.filter(booking=booking).first()
-    if existing_room:
-        return existing_room
-
-    # Create new chat room
-    chat_room = ChatRoom.objects.create(
-        user=booking.user,
-        driver=driver,
-        admin=admin_user,
-        booking=booking,
-        is_active=True
-    )
-
-    # Add system welcome message
-    ChatMessage.objects.create(
-        room=chat_room,
-        sender=admin_user,
-        message=f"🎫 Chat room created for your booking #{booking.booking_id}. You can message the driver here.",
-        message_type='system'
-    )
-
-    return chat_room
 
 @login_required
 def driver_get_chat_rooms(request):
@@ -1397,7 +1589,6 @@ def driver_get_chat_rooms(request):
 
     driver = request.user.driver_profile
 
-    # Get all active chat rooms for this driver
     chat_rooms = ChatRoom.objects.filter(
         driver=driver,
         is_active=True
@@ -1405,15 +1596,13 @@ def driver_get_chat_rooms(request):
 
     rooms_data = []
     for room in chat_rooms:
-        # Get last message
         last_message = room.messages.first()
-        # Count unread messages
         unread_count = room.messages.filter(is_read=False).exclude(sender=request.user).count()
 
         rooms_data.append({
             'id': room.id,
-            'user_name': room.user.get_full_name() or room.user.username,
-            'user_avatar': room.user.first_name[0].upper() if room.user.first_name else room.user.username[0].upper(),
+            'user_name': room.user.get_full_name() or room.user.username if room.user else 'Unknown',
+            'user_avatar': room.user.first_name[0].upper() if room.user and room.user.first_name else 'U',
             'last_message': last_message.message[:50] if last_message else 'No messages yet',
             'last_message_time': last_message.created_at.strftime('%I:%M %p') if last_message else '',
             'unread_count': unread_count,
@@ -1435,7 +1624,6 @@ def driver_send_chat_message(request, room_id):
     room = get_object_or_404(ChatRoom, id=room_id)
     driver = request.user.driver_profile
 
-    # Check if this room belongs to this driver
     if room.driver != driver:
         return JsonResponse({'success': False, 'error': 'Permission denied'})
 
@@ -1443,7 +1631,6 @@ def driver_send_chat_message(request, room_id):
     if not message_text:
         return JsonResponse({'success': False, 'error': 'Message cannot be empty'})
 
-    # Create the message
     message = ChatMessage.objects.create(
         room=room,
         sender=request.user,
@@ -1451,16 +1638,14 @@ def driver_send_chat_message(request, room_id):
         message_type='text'
     )
 
-    # Update room's updated_at time
     room.save()
 
-    # Create notification for admin (if admin is in this room)
     if room.admin:
         Notification.objects.create(
-            type='chat',
+            type='system',
             title=f'New message from {request.user.get_full_name() or request.user.username}',
             message=message_text[:100],
-            related_user=request.user,
+            related_user=room.admin,
             is_read=False
         )
 
@@ -1489,14 +1674,17 @@ def driver_get_chat_messages(request, room_id):
     room = get_object_or_404(ChatRoom, id=room_id)
     driver = request.user.driver_profile
 
-    # Check permission
     if room.driver != driver:
         return JsonResponse({'success': False, 'error': 'Permission denied'})
 
     last_id = request.GET.get('last_id', 0)
+    try:
+        last_id = int(last_id)
+    except ValueError:
+        last_id = 0
+
     messages = room.messages.filter(id__gt=last_id).select_related('sender')
 
-    # Mark messages as read
     messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
 
     data = {
@@ -1547,7 +1735,6 @@ def driver_start_chat(request, booking_id=None):
     if booking_id:
         booking = get_object_or_404(Booking, booking_id=booking_id)
 
-        # Check if chat room already exists for this booking and driver
         existing_room = ChatRoom.objects.filter(
             driver=driver,
             booking=booking,
@@ -1558,7 +1745,6 @@ def driver_start_chat(request, booking_id=None):
             return JsonResponse(
                 {'success': True, 'room_id': existing_room.id, 'redirect_url': f'/driver/chat/{existing_room.id}/'})
 
-        # Create new chat room for this booking
         room = ChatRoom.objects.create(
             user=booking.user,
             driver=driver,
@@ -1566,7 +1752,6 @@ def driver_start_chat(request, booking_id=None):
             is_active=True
         )
 
-        # Add system message
         ChatMessage.objects.create(
             room=room,
             sender=request.user,
@@ -1578,23 +1763,30 @@ def driver_start_chat(request, booking_id=None):
 
     return JsonResponse({'success': False, 'error': 'Booking ID required'})
 
+
 # ==================== PAYMENT VIEWS ====================
 from datetime import timedelta
 from django.db.models import Sum
 from .models import PaymentTransaction, UserPass, PaymentMethod
 
+
 @login_required
 def payment_page(request):
-    current_pass = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).first()
+    current_pass = UserPass.objects.filter(user=request.user, is_active=True,
+                                           end_date__gte=timezone.now().date()).first()
     payment_history = PaymentTransaction.objects.filter(user=request.user)[:10]
-    total_spent = PaymentTransaction.objects.filter(user=request.user, status='completed').aggregate(total=Sum('amount'))['total'] or 0
-    active_pass_count = UserPass.objects.filter(user=request.user, is_active=True, end_date__gte=timezone.now().date()).count()
+    total_spent = \
+    PaymentTransaction.objects.filter(user=request.user, status='completed').aggregate(total=Sum('amount'))[
+        'total'] or 0
+    active_pass_count = UserPass.objects.filter(user=request.user, is_active=True,
+                                                end_date__gte=timezone.now().date()).count()
     return render(request, 'app1/payments.html', {
         'current_pass': current_pass,
         'payment_history': payment_history,
         'total_spent': total_spent,
         'active_pass_count': active_pass_count,
     })
+
 
 @login_required
 def purchase_pass(request):
@@ -1623,8 +1815,11 @@ def purchase_pass(request):
         profile.pass_valid_until = end_date
         profile.pass_id = f"PASS-{request.user.id}-{timezone.now().year}"
         profile.save()
-        return JsonResponse({'success': True, 'message': f'{pass_type.capitalize()} Pass purchased!', 'transaction_id': transaction.transaction_id, 'valid_until': end_date.strftime('%Y-%m-%d')})
+        return JsonResponse({'success': True, 'message': f'{pass_type.capitalize()} Pass purchased!',
+                             'transaction_id': transaction.transaction_id,
+                             'valid_until': end_date.strftime('%Y-%m-%d')})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
 
 @login_required
 def payment_history(request):
@@ -1632,16 +1827,17 @@ def payment_history(request):
     total_spent = transactions.filter(status='completed').aggregate(total=Sum('amount'))['total'] or 0
     return render(request, 'app1/payment_history.html', {'transactions': transactions, 'total_spent': total_spent})
 
+
 @login_required
 def payment_success(request, transaction_id):
     transaction = get_object_or_404(PaymentTransaction, transaction_id=transaction_id, user=request.user)
     return render(request, 'app1/payment_success.html', {'transaction': transaction})
 
 
-
-    # ==================== EMERGENCY ALERT VIEWS ====================
+# ==================== EMERGENCY ALERT VIEWS ====================
 
 from .models import EmergencyAlert, EmergencyContact
+
 
 @login_required
 def emergency_page(request):
@@ -1662,7 +1858,7 @@ def send_emergency_alert(request):
             longitude = data.get('longitude')
             location_name = data.get('location_name', '')
             booking_id = data.get('booking_id')
-            
+
             alert = EmergencyAlert.objects.create(
                 user=request.user,
                 alert_type=alert_type,
@@ -1673,20 +1869,17 @@ def send_emergency_alert(request):
                 priority=1,
                 status='pending'
             )
-            
+
             if booking_id:
                 try:
                     alert.booking = Booking.objects.get(id=booking_id)
                     alert.save()
                 except:
                     pass
-            
-            # For demo, print to console
+
             print(f"🚨 EMERGENCY ALERT #{alert.id} from {request.user.username}")
             print(f"Type: {alert_type}, Message: {message}")
-            
-            # In production, you can send SMS/email to emergency contacts here
-            
+
             return JsonResponse({
                 'success': True,
                 'alert_id': alert.id,
@@ -1702,4 +1895,3 @@ def emergency_history(request):
     """View user's past emergency alerts"""
     alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'app1/emergency_history.html', {'alerts': alerts})
-

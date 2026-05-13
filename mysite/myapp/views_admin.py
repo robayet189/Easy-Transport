@@ -4,8 +4,9 @@ from django.http import JsonResponse
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import UserProfile, Route, Bus, Schedule, Booking, Driver, Trip, Alert, Notification
+from .models import UserProfile, Route, Bus, Schedule, Booking, Driver, Trip, Alert, Notification, ChatMessage
 from django.contrib.auth.models import User
+from .models import ChatRoom
 import json
 
 def is_admin(user):
@@ -31,6 +32,8 @@ def admin_dashboard(request):
         'recent_bookings': Booking.objects.select_related('user', 'schedule__route').order_by('-booking_date')[:10],
         'recent_notifications': Notification.objects.filter(is_read=False).order_by('-created_at')[:5],
         'active_drivers': Driver.objects.filter(is_active=True, is_approved=True).count(),
+        'drivers': Driver.objects.select_related('user', 'assigned_route').filter(is_active=True)[:20],
+        'all_users': User.objects.exclude(is_superuser=True)[:20],
     }
     return render(request, 'app1/admin/admin_dashboard.html', context)
 
@@ -168,22 +171,79 @@ def admin_add_schedule(request):
             bus = get_object_or_404(Bus, id=data.get('bus'))
             travel_date = datetime.strptime(data.get('travel_date'), '%Y-%m-%d').date()
             departure_time = datetime.strptime(data.get('departure_time'), '%H:%M').time()
+
             if Schedule.objects.filter(route=route, travel_date=travel_date, departure_time=departure_time).exists():
                 return JsonResponse({'success': False, 'message': 'Schedule already exists'})
-            schedule = Schedule.objects.create(route=route, bus=bus, travel_date=travel_date, departure_time=departure_time, arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get('arrival_time') else None, fare=float(data.get('fare', 40)), available_seats=data.get('available_seats') or bus.capacity, is_active=data.get('is_active', True))
-            Notification.objects.create(type='schedule', title='New Schedule', message=f'Route {route.code} on {travel_date} at {departure_time}', is_read=False)
+
+            schedule = Schedule.objects.create(
+                route=route, bus=bus, travel_date=travel_date, departure_time=departure_time,
+                arrival_time=datetime.strptime(data.get('arrival_time'), '%H:%M').time() if data.get(
+                    'arrival_time') else None,
+                fare=float(data.get('fare', 40)), available_seats=data.get('available_seats') or bus.capacity,
+                is_active=data.get('is_active', True)
+            )
+
+            Notification.objects.create(type='schedule', title='New Schedule',
+                                        message=f'Route {route.code} on {travel_date} at {departure_time}',
+                                        is_read=False)
+
             driver_id = data.get('driver')
             trip_created = False
+            chat_room_created = False
+
             if driver_id and str(driver_id).strip() and str(driver_id) not in ['null', 'undefined', 'None', '']:
                 try:
                     driver = Driver.objects.get(id=int(driver_id))
-                    driver.assigned_route = route; driver.assigned_bus = bus; driver.save()
-                    Trip.objects.create(driver=driver, route=route, bus=bus, travel_date=travel_date, departure_time=departure_time, arrival_time=schedule.arrival_time, status='pending')
+                    driver.assigned_route = route
+                    driver.assigned_bus = bus
+                    driver.save()
+
+                    # Create Trip
+                    Trip.objects.create(
+                        driver=driver, route=route, bus=bus,
+                        travel_date=travel_date, departure_time=departure_time,
+                        arrival_time=schedule.arrival_time, status='pending'
+                    )
                     trip_created = True
-                    Notification.objects.create(type='driver', title='Driver Assigned', message=f'{driver.user.get_full_name()} assigned to Route {route.code}', related_driver=driver, is_read=False)
+
+                    # ✅ ========== CREATE CHAT ROOM FOR DRIVER ==========
+                    admin_user = User.objects.filter(is_superuser=True).first()
+                    if admin_user:
+                        # Check if chat room already exists for this driver
+                        existing_chat = ChatRoom.objects.filter(driver=driver, room_type='driver_admin').first()
+                        if not existing_chat:
+                            chat_room = ChatRoom.objects.create(
+                                driver=driver,
+                                admin=admin_user,
+                                room_type='driver_admin',
+                                is_active=True
+                            )
+                            ChatMessage.objects.create(
+                                room=chat_room,
+                                sender=admin_user,
+                                message=f"🚌 Welcome! You have been assigned to Route {route.code} on {travel_date} at {departure_time}",
+                                message_type='system'
+                            )
+                            chat_room_created = True
+                            print(f"✅ CHAT ROOM CREATED for driver {driver.user.username}")
+                    # ====================================================
+
+                    Notification.objects.create(
+                        type='driver', title='Driver Assigned',
+                        message=f'{driver.user.get_full_name()} assigned to Route {route.code}',
+                        related_driver=driver, is_read=False
+                    )
                     print(f"✅ TRIP CREATED: Driver={driver.user.get_full_name()}, Route={route.code}")
-                except: pass
-            return JsonResponse({'success': True, 'message': 'Schedule added. ' + ('Trip created!' if trip_created else 'No driver assigned.'), 'schedule_id': schedule.id})
+
+                except Exception as e:
+                    print(f"Error in driver assignment: {e}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'Schedule added. ' + ('Trip created! ' if trip_created else 'No driver assigned. ') + (
+                    'Chat room created!' if chat_room_created else ''),
+                'schedule_id': schedule.id
+            })
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
@@ -528,4 +588,226 @@ def resolve_alert_api(request, alert_id):
     if request.method == 'POST':
         alert = get_object_or_404(Alert, id=alert_id); alert.is_resolved = True; alert.save()
         return JsonResponse({'success': True, 'message': 'Alert resolved'})
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
+
+# ==================== ADMIN CHAT FUNCTIONS ====================
+
+@login_required
+@user_passes_test(is_admin)
+def admin_chat_list(request):
+    """Admin view to see all chat rooms"""
+    chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user', 'driver__user', 'booking').order_by(
+        '-updated_at')
+
+    for room in chat_rooms:
+        room.unread_count = ChatMessage.objects.filter(room=room, is_read=False).exclude(sender=request.user).count()
+        room.last_message = room.messages.first()
+
+    context = {
+        'active': 'chat',
+        'chat_rooms': chat_rooms,
+    }
+    return render(request, 'app1/admin/admin_chat.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_get_chat_rooms_api(request):
+    """API: Get all chat rooms for admin"""
+    chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user', 'driver__user', 'booking').order_by(
+        '-updated_at')
+
+    rooms_data = []
+    for room in chat_rooms:
+        last_message = room.messages.first()
+        unread_count = room.messages.filter(is_read=False).exclude(sender=request.user).count()
+
+        # Determine room name
+        if room.user:
+            name = room.user.get_full_name() or room.user.username
+            avatar = room.user.first_name[0].upper() if room.user.first_name else room.user.username[0].upper()
+            room_type = 'user'
+        elif room.driver:
+            name = f"Driver: {room.driver.user.get_full_name() or room.driver.user.username}"
+            avatar = '🚌'
+            room_type = 'driver'
+        else:
+            name = 'Unknown'
+            avatar = '💬'
+            room_type = 'unknown'
+
+        rooms_data.append({
+            'id': room.id,
+            'name': name,
+            'avatar': avatar,
+            'room_type': room_type,
+            'last_message': last_message.message[:50] if last_message else 'No messages yet',
+            'last_message_time': last_message.created_at.strftime('%I:%M %p') if last_message else '',
+            'unread_count': unread_count,
+            'booking_id': room.booking.booking_id if room.booking else None,
+        })
+
+    return JsonResponse({'success': True, 'rooms': rooms_data})
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_send_chat_message(request, room_id):
+    """API: Admin sends message to a chat room"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid method'})
+
+    room = get_object_or_404(ChatRoom, id=room_id)
+    message_text = request.POST.get('message', '').strip()
+
+    if not message_text:
+        return JsonResponse({'success': False, 'error': 'Message cannot be empty'})
+
+    message = ChatMessage.objects.create(
+        room=room,
+        sender=request.user,
+        message=message_text,
+        message_type='text'
+    )
+
+    room.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': {
+            'id': message.id,
+            'sender': message.sender.username,
+            'sender_name': message.sender.get_full_name() or message.sender.username,
+            'sender_avatar': message.sender.first_name[0].upper() if message.sender.first_name else
+            message.sender.username[0].upper(),
+            'message': message.message,
+            'time': message.created_at.strftime('%I:%M %p'),
+            'is_owner': True,
+        }
+    })
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_get_chat_messages_api(request, room_id):
+    """API: Get messages for admin chat room"""
+    room = get_object_or_404(ChatRoom, id=room_id)
+    last_id = request.GET.get('last_id', 0)
+    messages = room.messages.filter(id__gt=last_id).select_related('sender')
+
+    # Mark as read
+    messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+
+    data = {
+        'success': True,
+        'messages': [
+            {
+                'id': msg.id,
+                'sender': msg.sender.username,
+                'sender_name': msg.sender.get_full_name() or msg.sender.username,
+                'sender_avatar': msg.sender.first_name[0].upper() if msg.sender.first_name else msg.sender.username[
+                    0].upper(),
+                'message': msg.message,
+                'time': msg.created_at.strftime('%I:%M %p'),
+                'is_owner': msg.sender == request.user,
+            }
+            for msg in messages
+        ]
+    }
+    return JsonResponse(data)
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_create_chat_room(request):
+    """Admin creates a chat room between driver and passenger"""
+    if request.method == 'POST':
+        try:
+            driver_id = request.POST.get('driver_id')
+            passenger_id = request.POST.get('passenger_id')
+            booking_id = request.POST.get('booking_id')
+
+            driver = get_object_or_404(Driver, id=driver_id) if driver_id else None
+            passenger = get_object_or_404(User, id=passenger_id) if passenger_id else None
+            booking = get_object_or_404(Booking, booking_id=booking_id) if booking_id else None
+
+            # Check if chat already exists
+            existing_room = ChatRoom.objects.filter(
+                driver=driver, user=passenger, is_active=True
+            ).first()
+
+            if existing_room:
+                return JsonResponse({'success': False, 'message': 'Chat room already exists'})
+
+            room = ChatRoom.objects.create(
+                user=passenger,
+                driver=driver,
+                admin=request.user,
+                booking=booking,
+                room_type='booking' if booking else 'user_admin',
+                is_active=True
+            )
+
+            ChatMessage.objects.create(
+                room=room,
+                sender=request.user,
+                message=f"📢 Chat room created. Admin can assist you here.",
+                message_type='system'
+            )
+
+            return JsonResponse({'success': True, 'room_id': room.id, 'message': 'Chat room created!'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
+
+@login_required
+@user_passes_test(is_admin)
+def admin_assign_driver(request):
+    """Assign driver to route and bus - creates chat room automatically"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            driver_id = data.get('driver_id')
+            route_id = data.get('route_id')
+            bus_id = data.get('bus_id')
+
+            driver = get_object_or_404(Driver, id=driver_id)
+
+            if route_id:
+                route = get_object_or_404(Route, id=route_id)
+                driver.assigned_route = route
+            if bus_id:
+                bus = get_object_or_404(Bus, id=bus_id)
+                driver.assigned_bus = bus
+
+            driver.save()
+
+            # ✅ Create chat room for driver
+            admin_user = User.objects.filter(is_superuser=True).first()
+            if admin_user:
+                existing_chat = ChatRoom.objects.filter(driver=driver, room_type='driver_admin').first()
+                if not existing_chat:
+                    chat_room = ChatRoom.objects.create(
+                        driver=driver,
+                        admin=admin_user,
+                        room_type='driver_admin',
+                        is_active=True
+                    )
+                    ChatMessage.objects.create(
+                        room=chat_room,
+                        sender=admin_user,
+                        message=f"🚌 Driver {driver.user.username} has been assigned to Route {driver.assigned_route.code if driver.assigned_route else 'N/A'}",
+                        message_type='system'
+                    )
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Driver {driver.user.username} assigned successfully!'
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
     return JsonResponse({'success': False, 'message': 'Invalid method'})
