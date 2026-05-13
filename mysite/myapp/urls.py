@@ -127,4 +127,9 @@ urlpatterns = [
     # ✅ Driver Emergency Alert & Passenger API
     path('driver/api/send-alert/', views.driver_send_alert, name='driver_send_alert'),
     path('driver/api/passengers/', views.driver_get_passengers, name='driver_get_passengers'),
+    path('admin_page/emergency/', views_admin.admin_emergency_tab, name='admin_emergency'),
+
+
+
+    path('admin_page/api/schedule/<int:schedule_id>/assign-driver/', views_admin.admin_assign_driver_to_schedule, name='admin_assign_driver_to_schedule'),
 ]

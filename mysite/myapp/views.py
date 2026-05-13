@@ -905,42 +905,27 @@ def driver_get_passengers(request):
 
 @login_required
 def driver_dashboard(request):
-    """Driver dashboard - shows REAL assigned trips, passengers, earnings from database"""
     if not hasattr(request.user, 'driver_profile'):
-        messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
     
     driver = request.user.driver_profile
     today = timezone.now().date()
     
-    today_trips = Trip.objects.filter(
-        driver=driver, travel_date=today
-    ).select_related('route', 'bus').order_by('departure_time')
+    # ✅ ট্রিপ ডাটা ফেচ
+    today_trips = Trip.objects.filter(driver=driver, travel_date=today).select_related('route', 'bus').order_by('departure_time')
+    upcoming_trips = Trip.objects.filter(driver=driver, travel_date__gt=today, status='pending').select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
+    ongoing_trip = Trip.objects.filter(driver=driver, status='ongoing').select_related('route', 'bus').first()
     
-    upcoming_trips = Trip.objects.filter(
-        driver=driver, travel_date__gt=today, status='pending'
-    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
-    
-    ongoing_trip = Trip.objects.filter(
-        driver=driver, status='ongoing'
-    ).select_related('route', 'bus').first()
-    
+    # ✅ রিয়েল-টাইম প্যাসেঞ্জার ও আয় ক্যালকুলেশন
     passenger_count = 0
-    today_earnings = 0
+    today_earnings = 0.0
     
-    if today_trips.exists():
-        for trip in today_trips:
-            schedule = Schedule.objects.filter(
-                route=trip.route, travel_date=trip.travel_date,
-                departure_time=trip.departure_time
-            ).first()
-            if schedule:
-                count = Booking.objects.filter(
-                    schedule=schedule, status='confirmed'
-                ).count()
-                passenger_count += count
-                today_earnings += count * float(schedule.fare)
-    
+    for trip in today_trips:
+        if trip.schedule:
+            count = Booking.objects.filter(schedule=trip.schedule, status='confirmed').count()
+            passenger_count += count
+            today_earnings += count * float(trip.schedule.fare)
+            
     trips_completed = driver.trips.filter(status='completed').count()
     
     context = {

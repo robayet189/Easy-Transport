@@ -58,23 +58,19 @@ class Route(models.Model):
 
 
 class Schedule(models.Model):
-    """
-    Scheduled trip instances for booking
-    ✅ FIXED: Added driver field for direct assignment
-    """
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='schedules')
     bus = models.ForeignKey(Bus, on_delete=models.CASCADE, related_name='schedules')
-    driver = models.ForeignKey('Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_schedules')  # ✅ NEW
+    driver = models.ForeignKey('Driver', on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_schedules')
     departure_time = models.TimeField()
     arrival_time = models.TimeField(null=True, blank=True)
     travel_date = models.DateField()
     fare = models.DecimalField(max_digits=8, decimal_places=2, default=60.00)
     is_active = models.BooleanField(default=True)
     available_seats = models.IntegerField(default=40)
-
+    
     class Meta:
         unique_together = ['route', 'travel_date', 'departure_time']
-
+        
     def __str__(self):
         driver_name = self.driver.user.get_full_name() if self.driver else "Unassigned"
         return f"{self.route.code} on {self.travel_date} | Driver: {driver_name}"
