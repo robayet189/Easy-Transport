@@ -1,4 +1,10 @@
-# Import required Django modules
+"""
+Easy Transport - Views Module
+Handles HTTP requests and returns responses for all application routes.
+Includes authentication, dashboard, booking, tracking, and admin functions.
+"""
+
+# Import required Django modules and utilities for view functions
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -7,7 +13,7 @@ from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q, Count
 from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
@@ -16,28 +22,59 @@ from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
 from datetime import datetime, timedelta
-import json, random, string, re
+import json
+import random
+import string
+import re
 
-# Import ALL models
+# Import ALL models from the myapp application
 from .models import (
     UserProfile, Route, Bus, Schedule, Booking, BusLocation,
     Driver, Trip, TripStop, VehicleIssue, Alert, Notification,
     ChatRoom, ChatMessage, PaymentTransaction, UserPass, PaymentMethod
 )
 
-# ==================== HELPER FUNCTIONS ====================
+# =============================================================================
+# HELPER FUNCTIONS - Utility functions used across multiple views
+# =============================================================================
 
 def is_ajax(request):
-    """Check if request is AJAX"""
-    return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+    """
+    Check if the incoming request is an AJAX request.
+    Supports both jQuery (X-Requested-With header) and Fetch API (Accept header).
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        bool: True if request is AJAX, False otherwise
+    """
+    return (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
+    )
+
 
 def get_profile_context(user):
-    """Helper to get profile context data"""
+    """
+    Helper function to get user profile context data for templates.
+    
+    Args:
+        user: Django User object
+        
+    Returns:
+        dict: Context dictionary with profile information
+    """
+    # Get or create user profile if it doesn't exist
     profile, created = UserProfile.objects.get_or_create(user=user)
+    
+    # Check if transport pass is currently active
     is_active = getattr(profile, 'is_pass_active', False)
+    
+    # Format pass validity date for display
     pass_date = getattr(profile, 'pass_valid_until', None)
     pass_valid_until_str = pass_date.strftime("%b %d, %Y") if pass_date else "Not active"
+    
     return {
         'user': user,
         'profile': profile,
@@ -46,36 +83,115 @@ def get_profile_context(user):
         'pass_id': getattr(profile, 'pass_id', None) or 'No pass',
     }
 
+
 def get_user_type_safe(user):
-    """✅ FIXED: Safe way to get user type without AttributeError"""
+    """
+    Safely get user type from profile without raising AttributeError.
+    Handles cases where profile or user_type might not exist.
+    
+    Args:
+        user: Django User object
+        
+    Returns:
+        str: User type ('admin', 'driver', 'student', 'teacher', 'employee') or 'student' as default
+    """
     try:
+        # Check if user has a profile and profile has user_type attribute
         if hasattr(user, 'profile') and user.profile:
-            ut = str(user.profile.user_type).lower().strip()
-            if ut in ['admin', 'driver', 'student', 'teacher', 'employee']:
-                return ut
-    except:
+            user_type = str(user.profile.user_type).lower().strip()
+            # Return only valid user types
+            if user_type in ['admin', 'driver', 'student', 'teacher', 'employee']:
+                return user_type
+    except AttributeError:
+        # Profile or user_type doesn't exist, continue to fallback
         pass
+    except Exception:
+        # Any other error, return default
+        pass
+    # Default fallback for any user without valid profile
     return 'student'
 
-# ==================== AUTH & PAGES ====================
+
+# =============================================================================
+# AUTHENTICATION & PAGE VIEWS - Login, Register, Logout functions
+# =============================================================================
 
 def homepage(request):
+    """
+    Render the homepage template.
+    Public page accessible without authentication.
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered homepage template
+    """
     return render(request, 'app1/Homepage.html')
 
+
 def register_page(request):
+    """
+    Render the user registration page template.
+    Public page for new user sign-up.
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered registration template
+    """
     return render(request, 'app1/register.html')
 
+
 def login_page(request):
+    """
+    Render the user login page template.
+    Public page for user authentication.
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered login template
+    """
     return render(request, 'app1/login.html')
 
+
 def account_created_page(request):
+    """
+    Render the account creation success page template.
+    Shown after successful registration.
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered success template
+    """
     return render(request, 'app1/account_created.html')
+
 
 @require_http_methods(["POST"])
 def register_user(request):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
+    """
+    Handle user registration via POST request.
+    Validates input, creates user account and profile, returns JSON response.
     
+    Args:
+        request: Django HTTP POST request with registration data
+        
+    Returns:
+        JsonResponse: Success or error message with status code
+    """
+    # Reject non-POST requests
+    if request.method != 'POST':
+        return JsonResponse(
+            {'success': False, 'message': 'Invalid request method'}, 
+            status=400
+        )
+    
+    # Extract and sanitize form data
     full_name = request.POST.get('full_name', '').strip()
     email = request.POST.get('email', '').strip().lower()
     password = request.POST.get('password', '')
@@ -84,43 +200,70 @@ def register_user(request):
     user_type = request.POST.get('user_type', 'student').strip().lower()
     institution_id = request.POST.get('institution_id', '').strip()
     
+    # Validate that all required fields are provided
     if not all([full_name, email, password, phone, institution_type, user_type, institution_id]):
-        return JsonResponse({'success': False, 'message': 'All fields are required'}, status=400)
+        return JsonResponse(
+            {'success': False, 'message': 'All fields are required'}, 
+            status=400
+        )
     
+    # Check if email is already registered
     if User.objects.filter(email=email).exists():
-        return JsonResponse({'success': False, 'message': 'Email already registered'}, status=400)
+        return JsonResponse(
+            {'success': False, 'message': 'Email already registered'}, 
+            status=400
+        )
     
+    # Validate password strength (minimum 6 characters)
     if len(password) < 6:
-        return JsonResponse({'success': False, 'message': 'Password must be at least 6 characters'}, status=400)
+        return JsonResponse(
+            {'success': False, 'message': 'Password must be at least 6 characters'}, 
+            status=400
+        )
     
+    # Validate email format using regex
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-        return JsonResponse({'success': False, 'message': 'Invalid email format'}, status=400)
+        return JsonResponse(
+            {'success': False, 'message': 'Invalid email format'}, 
+            status=400
+        )
     
     try:
+        # Generate unique username from email (add counter if duplicate)
         username = email.split('@')[0]
         counter = 1
         while User.objects.filter(username=username).exists():
             username = f"{email.split('@')[0]}_{counter}"
             counter += 1
         
+        # Create Django User object
         user = User.objects.create_user(
-            username=username, email=email, password=password,
+            username=username,
+            email=email,
+            password=password,
             first_name=full_name.split()[0] if ' ' in full_name else full_name,
             last_name=full_name.split()[-1] if ' ' in full_name and len(full_name.split()) > 1 else ''
         )
         
+        # Create user profile with additional information
         UserProfile.objects.create(
-            user=user, phone=phone, institution_type=institution_type,
-            user_type=user_type, institution_id=institution_id
+            user=user,
+            phone=phone,
+            institution_type=institution_type,
+            user_type=user_type,
+            institution_id=institution_id
         )
         
+        # If user is registering as driver, create Driver profile automatically
         if user_type == 'driver':
+            # Generate unique license number
             unique_license = f"DL-{timezone.now().strftime('%Y%m%d')}-{random.randint(10000, 99999)}-{user.id}"
+            # Create Driver object if it doesn't exist
             if not Driver.objects.filter(user=user).exists():
                 Driver.objects.create(
                     user=user,
                     license_number=unique_license,
-                    license_expiry=timezone.now().date() + timedelta(days=365*5),
+                    license_expiry=timezone.now().date() + timedelta(days=365*5),  # 5 years validity
                     phone=phone,
                     address='',
                     emergency_contact='',
@@ -128,6 +271,7 @@ def register_user(request):
                     is_active=True
                 )
         
+        # Return success response with redirect URL
         return JsonResponse({
             'success': True, 
             'message': 'Account created successfully! Please login to continue.',
@@ -135,89 +279,126 @@ def register_user(request):
         })
         
     except Exception as e:
+        # Log error and return failure response
         print(f"Registration error: {str(e)}")
-        return JsonResponse({'success': False, 'message': f'Registration failed: {str(e)}'}, status=500)
+        return JsonResponse(
+            {'success': False, 'message': f'Registration failed: {str(e)}'}, 
+            status=500
+        )
+
 
 @require_http_methods(["POST"])
 def login_user(request):
     """
-    ✅ FIXED: Handle user authentication with proper role-based redirect
+    Handle user authentication via POST request.
+    ✅ FIXED: Proper role-based redirect with immediate driver detection.
+    
+    Args:
+        request: Django HTTP POST request with login credentials
+        
+    Returns:
+        JsonResponse: Success with redirect URL or error message
     """
+    # Extract and sanitize login credentials
     username_or_email = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     
+    # Validate that both fields are provided
     if not username_or_email or not password:
-        return JsonResponse({'success': False, 'message': 'Please enter username/email and password'}, status=400)
+        return JsonResponse(
+            {'success': False, 'message': 'Please enter username/email and password'}, 
+            status=400
+        )
     
     user = None
     
+    # Handle login by email (find user by email, then authenticate by username)
     if '@' in username_or_email:
         try:
             user_obj = User.objects.get(email__iexact=username_or_email)
             user = authenticate(request, username=user_obj.username, password=password)
         except User.DoesNotExist:
             user = None
+    # Handle login by username directly
     else:
         user = authenticate(request, username=username_or_email, password=password)
     
+    # If authentication successful
     if user is not None:
-        # ✅ FIXED: Login FIRST, then detect role
+        # Log the user in (creates session)
         login(request, user)
         
-        # ✅ FIXED: Force session save to ensure cookie is set
+        # ✅ FIXED: Force session save to ensure cookie is written immediately
         request.session.save()
         
-        # ✅ FIXED: Safe role detection with explicit checks
-        user_type = 'student'  # default
+        # ✅ FIXED: Determine user role with explicit priority: driver > admin > student
+        redirect_url = '/dashboard/'  # Default for regular users
         
-        # Method 1: Check UserProfile.user_type explicitly
-        if hasattr(user, 'profile'):
-            try:
-                ut = str(user.profile.user_type).lower().strip()
-                if ut in ['admin', 'driver', 'student', 'teacher', 'employee']:
-                    user_type = ut
-            except:
-                pass
+        try:
+            # Priority 1: Check if user has Driver profile (most specific check first)
+            if hasattr(user, 'driver_profile') and user.driver_profile and user.driver_profile.is_active:
+                redirect_url = '/driver/dashboard/'
+            
+            # Priority 2: Check UserProfile.user_type for admin
+            elif hasattr(user, 'profile') and user.profile:
+                user_type = str(user.profile.user_type).lower().strip()
+                if user_type == 'admin':
+                    redirect_url = '/admin_page/dashboard/'
+                elif user_type == 'driver':
+                    redirect_url = '/driver/dashboard/'
+                # student/teacher/employee stay on default dashboard
+                else:
+                    redirect_url = '/dashboard/'
+                    
+        except Exception as e:
+            # Log error but don't break login flow
+            print(f"Role detection error: {e}")
+            redirect_url = '/dashboard/'
         
-        # Method 2: Fallback to Driver model check
-        if user_type == 'student' and hasattr(user, 'driver_profile'):
-            try:
-                if user.driver_profile and user.driver_profile.is_active:
-                    user_type = 'driver'
-            except:
-                pass
-        
-        # ✅ FIXED: Role-based redirect URLs
-        redirect_map = {
-            'admin': '/admin_page/dashboard/',
-            'driver': '/driver/dashboard/',
-            'student': '/dashboard/',
-            'teacher': '/dashboard/',
-            'employee': '/dashboard/',
-        }
-        redirect_url = redirect_map.get(user_type, '/dashboard/')
-        
+        # Prepare welcome message based on role
         full_name = user.get_full_name() or user.username
-        msg = f'Welcome back Admin, {full_name}!' if user_type == 'admin' else f'Welcome back, {full_name}!'
+        if 'admin' in redirect_url:
+            msg = f'Welcome back Admin, {full_name}!'
+        else:
+            msg = f'Welcome back, {full_name}!'
         
+        # Return success response with redirect URL and user type
         return JsonResponse({
             'success': True, 
             'message': msg, 
             'redirect_url': redirect_url,
-            'user_type': user_type
+            'user_type': get_user_type_safe(user)
         })
     
-    return JsonResponse({'success': False, 'message': 'Invalid username/email or password'}, status=401)
+    # Authentication failed
+    return JsonResponse(
+        {'success': False, 'message': 'Invalid username/email or password'}, 
+        status=401
+    )
+
 
 def logout_user(request):
+    """
+    Handle user logout and redirect to homepage.
+    Clears session and shows success message.
+    
+    Args:
+        request: Django HTTP request object
+        
+    Returns:
+        HttpResponse: Redirect to homepage
+    """
     logout(request)
     messages.success(request, 'Logged out successfully')
     return redirect('homepage')
 
-# ==================== PASSWORD RESET (Keep as is - no changes needed) ====================
-# [Keep all password reset functions unchanged]
+
+# =============================================================================
+# PASSWORD RESET & EMAIL VERIFICATION - Account recovery functions
+# =============================================================================
 
 def forgot_password(request):
+    """Handle password reset request via email"""
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         if not email:
@@ -243,10 +424,14 @@ def forgot_password(request):
         return redirect('forgot_password_success')
     return render(request, 'app1/forgot_password.html')
 
+
 def forgot_password_success(request):
+    """Show success page after password reset request"""
     return render(request, 'app1/forgot_password_success.html')
 
+
 def password_reset_confirm_view(request, uidb64, token):
+    """Handle password reset confirmation with new password"""
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = User.objects.get(pk=uid)
@@ -269,10 +454,14 @@ def password_reset_confirm_view(request, uidb64, token):
     else:
         return render(request, 'app1/password_reset_confirm.html', {'valid': False})
 
+
 def password_reset_success(request):
+    """Show success page after password is reset"""
     return render(request, 'app1/password_reset_success.html')
 
+
 def send_verification_email(user):
+    """Send verification email (console backend for development)"""
     token = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     print(f"Verification token for {user.email}: {token}")
     subject = 'Verify your Easy Transport account'
@@ -281,13 +470,17 @@ def send_verification_email(user):
     recipient_list = [user.email]
     send_mail(subject, message, from_email, recipient_list, fail_silently=True)
 
+
 @require_http_methods(["GET"])
 def verify_email(request, token):
+    """Verify user email with token"""
     messages.success(request, 'Email verified successfully! Please login.')
     return redirect('login_page')
 
+
 @require_http_methods(["POST"])
 def resend_verification_email(request):
+    """Resend verification email"""
     email = request.POST.get('email', '').strip().lower()
     try:
         user = User.objects.get(email=email)
@@ -296,8 +489,10 @@ def resend_verification_email(request):
     except User.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'No account found with this email'}, status=400)
 
+
 @require_http_methods(["POST"])
 def password_reset_request(request):
+    """API endpoint for password reset request (AJAX)"""
     email = request.POST.get('email', '').strip().lower()
     try:
         user = User.objects.get(email=email)
@@ -307,17 +502,32 @@ def password_reset_request(request):
     except User.DoesNotExist:
         return JsonResponse({'success': True, 'message': 'If an account exists, a reset link has been sent.'})
 
-# ==================== DASHBOARD & SCHEDULE ====================
+
+# =============================================================================
+# DASHBOARD & SCHEDULE VIEWS - Main user interface functions
+# =============================================================================
 
 @login_required
 def dashboard(request):
     """
     ✅ Student/Teacher/Employee Dashboard - ONLY for non-admin, non-driver users
-    ✅ FIXED: Strict role guard at the VERY BEGINNING
+    ✅ FIXED: Proper role-based access control + correct bookings display on first load
+    
+    This view handles the main user dashboard. It:
+    1. Redirects admin/driver to their respective dashboards immediately
+    2. Loads booking data, pass status, and statistics for regular users
+    3. Returns full HTML on first load, partial HTML on AJAX requests
+    
+    Args:
+        request: Django HTTP request object (must be authenticated)
+        
+    Returns:
+        HttpResponse: Rendered dashboard template with user data
     """
     user = request.user
     
-    # ✅ FIXED: IMMEDIATE role check - redirect BEFORE any processing
+    # ✅ FIXED: IMMEDIATE role check at the VERY BEGINNING - redirect BEFORE any processing
+    # This prevents admin/driver from ever seeing student dashboard content
     user_type = get_user_type_safe(user)
     
     if user_type == 'admin':
@@ -325,78 +535,131 @@ def dashboard(request):
     elif user_type == 'driver':
         return redirect('driver_dashboard')
     
-    # ✅ Only student/teacher/employee reach here
+    # ✅ Only student/teacher/employee reach this point
+    # Get or create user profile for additional data
     profile, _ = UserProfile.objects.get_or_create(user=user)
     today = timezone.now().date()
     
-    # ✅ FIXED: Booking queries with proper related names
+    # ✅ FIXED: Upcoming bookings query - fetch confirmed bookings for future dates
+    # Use select_related to optimize database queries (avoid N+1 problem)
     upcoming_bookings = Booking.objects.filter(
         user=user, 
         status='confirmed', 
-        schedule__travel_date__gte=today
-    ).select_related('schedule__route', 'schedule__bus').order_by(
-        'schedule__travel_date', 'schedule__departure_time'
-    )[:5]
+        schedule__travel_date__gte=today  # Today or future dates
+    ).select_related(
+        'schedule__route',  # Join with route table
+        'schedule__bus'     # Join with bus table
+    ).order_by(
+        'schedule__travel_date',    # Sort by date first
+        'schedule__departure_time'  # Then by time
+    )[:5]  # Limit to 5 upcoming bookings
     
+    # ✅ FIXED: Past bookings query - fetch confirmed bookings for past dates
     past_bookings = Booking.objects.filter(
         user=user, 
         status='confirmed', 
-        schedule__travel_date__lt=today
-    ).select_related('schedule__route', 'schedule__bus').order_by(
-        '-schedule__travel_date'
-    )[:3]
+        schedule__travel_date__lt=today  # Dates before today
+    ).select_related(
+        'schedule__route',
+        'schedule__bus'
+    ).order_by(
+        '-schedule__travel_date'  # Most recent first (descending)
+    )[:3]  # Limit to 3 past bookings
     
-    total_bookings = Booking.objects.filter(user=user, status='confirmed').count()
+    # ✅ FIXED: Calculate total confirmed bookings count
+    total_bookings = Booking.objects.filter(
+        user=user, 
+        status='confirmed'
+    ).count()
+    
+    # ✅ FIXED: Calculate total amount spent on confirmed bookings
     total_spent = Booking.objects.filter(
-        user=user, status='confirmed'
-    ).aggregate(total=Sum('amount'))['total'] or 0
+        user=user, 
+        status='confirmed'
+    ).aggregate(total=Sum('amount'))['total'] or 0  # Return 0 if no bookings
     
+    # ✅ FIXED: Check if user has an active transport pass
     has_active_pass = UserPass.objects.filter(
         user=user, 
         is_active=True, 
-        end_date__gte=timezone.now().date()
+        end_date__gte=timezone.now().date()  # Pass not expired
     ).exists()
     
+    # ✅ FIXED: Context dictionary with ALL variables template expects
     context = {
-        'first_name': user.first_name or user.username,
-        'user_type': user_type,
-        'profile': profile,
+        'first_name': user.first_name or user.username,  # Fallback to username if no first name
+        'user_type': user_type,  # Pass user type to template for conditional display
+        'profile': profile,  # Full profile object for template access
         'pass_status': 'Active' if profile.is_pass_active else 'Inactive',
         'next_payment': '৳1,200 due on 15th' if profile.is_pass_active else 'No active pass',
-        'upcoming_bookings': upcoming_bookings,
-        'past_bookings': past_bookings,
+        'upcoming_bookings': upcoming_bookings,  # ✅ Critical: Correct variable name for template
+        'past_bookings': past_bookings,  # ✅ Critical: Correct variable name for template
         'total_bookings': total_bookings,
         'total_spent': total_spent,
         'has_active_pass': has_active_pass,
-        'page_title': 'Dashboard',
+        'page_title': 'Dashboard',  # For browser tab title
     }
     
+    # ✅ FIXED: Return full HTML on first load, partial HTML on AJAX requests
+    # This ensures dashboard works both on direct navigation AND SPA navigation
     if is_ajax(request):
         return render(request, 'app1/partials/dashboard_content.html', context)
     return render(request, 'app1/dashboard.html', context)
 
+
 @login_required
 def schedule(request):
+    """
+    Render transport schedule page with filtering options.
+    Shows available routes for today and future dates.
+    
+    Args:
+        request: Django HTTP request object (must be authenticated)
+        
+    Returns:
+        HttpResponse: Rendered schedule template with route data
+    """
     try:
         today = timezone.now().date()
+        # Fetch active schedules for today and future dates
         routes = Schedule.objects.filter(
-            is_active=True, travel_date__gte=today
-        ).select_related('route', 'bus').order_by('travel_date', 'departure_time')
+            is_active=True, 
+            travel_date__gte=today
+        ).select_related('route', 'bus').order_by(
+            'travel_date', 
+            'departure_time'
+        )
+        # Separate morning and evening routes for UI filtering
         morning_routes = routes.filter(departure_time__hour__lt=12)
         evening_routes = routes.filter(departure_time__hour__gte=12)
+        
         context = {
             'routes': routes, 
             'morning_routes': morning_routes, 
             'evening_routes': evening_routes
         }
+        
         if is_ajax(request):
             return render(request, 'app1/partials/schedule_content.html', context)
         return render(request, 'app1/schedule.html', context)
     except Exception as e:
+        # Return empty schedule with error message if query fails
         return render(request, 'app1/schedule.html', {'routes': [], 'error': str(e)})
+
 
 @login_required
 def schedule_details(request, schedule_id):
+    """
+    Return schedule details as JSON for AJAX requests.
+    Used by frontend to show modal with route information.
+    
+    Args:
+        request: Django HTTP request object
+        schedule_id: Primary key of the Schedule object
+        
+    Returns:
+        JsonResponse: Schedule details in JSON format
+    """
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     return JsonResponse({
         'success': True,
@@ -413,10 +676,14 @@ def schedule_details(request, schedule_id):
         }
     })
 
-# ==================== PROFILE & EDIT PROFILE (Keep as is) ====================
+
+# =============================================================================
+# PROFILE & EDIT PROFILE VIEWS - User account management
+# =============================================================================
 
 @login_required
 def profile(request):
+    """Handle user profile viewing and updating"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     
@@ -442,8 +709,10 @@ def profile(request):
         return render(request, 'app1/partials/profile_content.html', context)
     return render(request, 'app1/profile.html', context)
 
+
 @login_required
 def edit_profile(request):
+    """Handle user profile editing with form validation"""
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
     
@@ -466,8 +735,10 @@ def edit_profile(request):
         return render(request, 'app1/partials/edit_profile_content.html', context)
     return render(request, 'app1/edit_profile.html', context)
 
+
 @login_required
 def change_password(request):
+    """Handle password change with current password verification"""
     if request.method == 'POST':
         user = request.user
         current_password = request.POST.get('current_password')
@@ -493,8 +764,10 @@ def change_password(request):
         return redirect('profile')
     return redirect('profile')
 
+
 @login_required
 def renew_pass(request):
+    """Handle transport pass renewal with 30-day extension"""
     if request.method == 'POST':
         user = request.user
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -510,10 +783,14 @@ def renew_pass(request):
         return redirect('profile')
     return redirect('profile')
 
-# ==================== BOOKING SYSTEM (Keep as is) ====================
+
+# =============================================================================
+# BOOKING SYSTEM VIEWS - Seat reservation and management
+# =============================================================================
 
 @login_required
 def book_ticket(request, schedule_id):
+    """Handle seat booking with availability check and payment processing"""
     if request.method == 'POST':
         try:
             schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
@@ -566,8 +843,10 @@ def book_ticket(request, schedule_id):
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
 
+
 @login_required
 def my_bookings(request):
+    """Display user's booking history with summary statistics"""
     bookings = Booking.objects.filter(user=request.user).select_related('schedule__route').order_by('-booking_date')
     context = {
         'bookings': bookings,
@@ -578,16 +857,20 @@ def my_bookings(request):
         return render(request, 'app1/partials/bookings_content.html', context)
     return render(request, 'app1/my_bookings.html', context)
 
+
 @login_required
 def booking_detail(request, booking_id):
+    """Display detailed information for a specific booking"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     context = {'booking': booking}
     if is_ajax(request):
         return render(request, 'app1/partials/booking_detail_content.html', context)
     return render(request, 'app1/booking_detail.html', context)
 
+
 @login_required
 def cancel_booking(request, booking_id):
+    """Handle booking cancellation with seat availability restoration"""
     if request.method == 'POST':
         booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
         if booking.status == 'cancelled':
@@ -605,8 +888,10 @@ def cancel_booking(request, booking_id):
             })
     return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
 
+
 @login_required
 def check_seat_availability(request, schedule_id):
+    """Return seat availability information as JSON for frontend display"""
     schedule = get_object_or_404(Schedule, id=schedule_id)
     return JsonResponse({
         'available_seats': schedule.available_seats,
@@ -614,10 +899,14 @@ def check_seat_availability(request, schedule_id):
         'fare': float(schedule.fare) if schedule.fare else 0
     })
 
-# ==================== BUS BOOKING FUNCTIONS (Keep as is) ====================
+
+# =============================================================================
+# BUS BOOKING FUNCTIONS - Seat selection and confirmation
+# =============================================================================
 
 @login_required
 def select_seats(request, schedule_id):
+    """Render seat selection interface with booked seats highlighted"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     booked_seats = Booking.objects.filter(
         schedule=schedule, status='confirmed'
@@ -631,8 +920,10 @@ def select_seats(request, schedule_id):
     }
     return render(request, 'app1/select_seats.html', context)
 
+
 @login_required
 def confirm_booking(request):
+    """Process booking confirmation with seat reservation and payment"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -655,18 +946,26 @@ def confirm_booking(request):
         return redirect('booking_confirmation', booking_id=booking.booking_id)
     return redirect('schedule')
 
+
 @login_required
 def booking_confirmation(request, booking_id):
+    """Display booking confirmation page with trip details"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation.html', {'booking': booking})
 
+
 def bus_schedule(request):
+    """Render bus schedule overview page"""
     return render(request, 'app1/bus_schedule.html')
 
-# ==================== 2-STEP BOOKING SYSTEM (Keep as is) ====================
+
+# =============================================================================
+# 2-STEP BOOKING SYSTEM - Trip summary and seat selection
+# =============================================================================
 
 @login_required
 def trip_summary(request, schedule_id):
+    """Display trip summary before seat selection"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     context = {
         'schedule': schedule,
@@ -684,8 +983,10 @@ def trip_summary(request, schedule_id):
     }
     return render(request, 'app1/trip_summary.html', context)
 
+
 @login_required
 def seat_selection(request, schedule_id):
+    """Render interactive seat selection interface with availability"""
     schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
     total_seats = schedule.bus.capacity if schedule.bus else 40
     rows = total_seats // 4
@@ -711,8 +1012,10 @@ def seat_selection(request, schedule_id):
     }
     return render(request, 'app1/seat_selection.html', context)
 
+
 @login_required
 def confirm_booking_seat(request):
+    """Process 2-step booking confirmation with seat selection"""
     if request.method == 'POST':
         schedule_id = request.POST.get('schedule_id')
         seat_number = request.POST.get('seat_number')
@@ -735,23 +1038,32 @@ def confirm_booking_seat(request):
         return redirect('booking_confirmation_seat', booking_id=booking.booking_id)
     return redirect('schedule')
 
+
 @login_required
 def booking_confirmation_seat(request, booking_id):
+    """Display confirmation page for 2-step booking flow"""
     booking = get_object_or_404(Booking, booking_id=booking_id, user=request.user)
     return render(request, 'app1/booking_confirmation_seat.html', {'booking': booking})
 
+
 @login_required
 def track_bus(request):
+    """Render real-time bus tracking interface"""
     return render(request, 'app1/track_bus.html')
 
-# ==================== BUS TRACKING API (Keep as is) ====================
+
+# =============================================================================
+# BUS TRACKING API (DRF) - Real-time GPS location endpoints
+# =============================================================================
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import BusSerializer, BusLocationSerializer
 
+
 @api_view(['POST'])
 def update_bus_location(request, bus_id):
+    """API endpoint to update bus GPS location"""
     try:
         bus = Bus.objects.get(id=bus_id)
         lat = request.data.get('lat') or request.data.get('latitude')
@@ -768,8 +1080,10 @@ def update_bus_location(request, bus_id):
     except Bus.DoesNotExist:
         return Response({"error": "Bus not found"}, status=404)
 
+
 @api_view(['GET'])
 def get_bus_location(request, bus_id):
+    """API endpoint to retrieve latest bus location"""
     try:
         bus = Bus.objects.get(id=bus_id)
         latest_location = BusLocation.objects.filter(bus=bus).first()
@@ -784,8 +1098,10 @@ def get_bus_location(request, bus_id):
     except Bus.DoesNotExist:
         return Response({"error": "Bus not found"}, status=404)
 
+
 @api_view(['GET'])
 def get_all_buses_location(request):
+    """API endpoint to retrieve all bus locations for map display"""
     buses = Bus.objects.all()
     data = []
     for bus in buses:
@@ -799,15 +1115,21 @@ def get_all_buses_location(request):
         })
     return Response(data)
 
+
 @login_required
 def track_bus_api(request):
+    """Render bus tracking page with all active buses"""
     buses = Bus.objects.filter(is_active=True)
     return render(request, 'app1/track_bus_api.html', {'buses': buses})
 
-# ==================== CHAT SYSTEM (Keep as is) ====================
+
+# =============================================================================
+# CHAT SYSTEM VIEWS - Real-time messaging between users and admin
+# =============================================================================
 
 @login_required
 def chat_list(request):
+    """Display chat room list based on user role"""
     user_type = get_user_type_safe(request.user)
     if user_type == 'admin':
         chat_rooms = ChatRoom.objects.filter(is_active=True).select_related('user')
@@ -819,13 +1141,16 @@ def chat_list(request):
     }
     return render(request, 'app1/chat_list.html', context)
 
+
 @login_required
 def chat_room(request, room_id):
+    """Display chat room with message history and real-time updates"""
     room = get_object_or_404(ChatRoom, id=room_id)
     user_type = get_user_type_safe(request.user)
     if user_type != 'admin' and room.user != request.user:
         messages.error(request, 'You do not have permission to view this chat.')
         return redirect('chat_list')
+    # Mark messages as read when user views the room
     ChatMessage.objects.filter(
         room=room, is_read=False
     ).exclude(sender=request.user).update(is_read=True)
@@ -836,8 +1161,10 @@ def chat_room(request, room_id):
     }
     return render(request, 'app1/chat_room.html', context)
 
+
 @login_required
 def start_chat(request, booking_id=None):
+    """Create new chat room or redirect to existing one"""
     if request.method == 'POST':
         user_id = request.POST.get('user_id')
         subject = request.POST.get('subject', '')
@@ -857,8 +1184,10 @@ def start_chat(request, booking_id=None):
         return redirect('chat_room', room_id=room.id)
     return redirect('chat_list')
 
+
 @login_required
 def send_chat_message(request, room_id):
+    """API endpoint to send chat message with validation"""
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         user_type = get_user_type_safe(request.user)
@@ -886,8 +1215,10 @@ def send_chat_message(request, room_id):
         })
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
+
 @login_required
 def get_chat_messages(request, room_id):
+    """API endpoint to fetch new chat messages for real-time updates"""
     room = get_object_or_404(ChatRoom, id=room_id)
     last_id = request.GET.get('last_id', 0)
     messages = room.messages.filter(id__gt=last_id)
@@ -907,8 +1238,10 @@ def get_chat_messages(request, room_id):
     }
     return JsonResponse(data)
 
+
 @login_required
 def close_chat(request, room_id):
+    """API endpoint to close chat room (admin only)"""
     if request.method == 'POST':
         room = get_object_or_404(ChatRoom, id=room_id)
         user_type = get_user_type_safe(request.user)
@@ -924,15 +1257,21 @@ def close_chat(request, room_id):
         return JsonResponse({'success': True, 'message': 'Chat closed successfully'})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
-# ==================== DRIVER MODULE VIEWS ====================
+
+# =============================================================================
+# DRIVER MODULE VIEWS - Driver-specific authentication and dashboard
+# =============================================================================
 
 def driver_login_page(request):
+    """Render driver login page or redirect if already authenticated"""
     if request.user.is_authenticated and hasattr(request.user, 'driver_profile'):
         return redirect('driver_dashboard')
     return render(request, 'app1/driver/driver_login.html')
 
+
 @require_http_methods(["POST"])
 def driver_login(request):
+    """Handle driver authentication with approval status check"""
     username = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
     user = authenticate(request, username=username, password=password)
@@ -970,11 +1309,15 @@ def driver_login(request):
             'message': 'Invalid username or password'
         }, status=401)
 
-# ==================== DRIVER EMERGENCY ALERT & PASSENGER API (Keep as is) ====================
+
+# =============================================================================
+# DRIVER EMERGENCY ALERT & PASSENGER API - Driver-specific features
+# =============================================================================
 
 @login_required
 @require_http_methods(["POST"])
 def driver_send_alert(request):
+    """API: Driver sends emergency alert - saves to database + creates notification"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not authorized'}, status=403)
     
@@ -1006,8 +1349,10 @@ def driver_send_alert(request):
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
+
 @login_required
 def driver_get_passengers(request):
+    """API: Get REAL passenger list for driver's today trips from Booking model"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'passengers': []})
     
@@ -1038,15 +1383,28 @@ def driver_get_passengers(request):
     
     return JsonResponse({'success': True, 'passengers': passengers})
 
+
 @login_required
 def driver_dashboard(request):
     """
     ✅ Driver Dashboard - ONLY for driver users
-    ✅ FIXED: Strict role guard at the VERY BEGINNING
+    ✅ FIXED: Strict role guard at the VERY BEGINNING + proper data fetch
+    
+    This view handles the driver's main dashboard. It:
+    1. Immediately redirects non-drivers to their correct dashboard
+    2. Loads today's trips, passenger count, and earnings for drivers
+    3. Returns full HTML template with all necessary context
+    
+    Args:
+        request: Django HTTP request object (must be authenticated)
+        
+    Returns:
+        HttpResponse: Rendered driver dashboard template
     """
     user = request.user
     
     # ✅ FIXED: IMMEDIATE role check - redirect BEFORE any processing
+    # This prevents student/admin from ever seeing driver dashboard content
     if not hasattr(user, 'driver_profile'):
         user_type = get_user_type_safe(user)
         if user_type == 'admin':
@@ -1054,45 +1412,62 @@ def driver_dashboard(request):
         else:
             return redirect('dashboard')  # student/teacher/employee
     
-    # ✅ Only drivers reach here
+    # ✅ Only drivers reach this point
     driver = user.driver_profile
     today = timezone.now().date()
     
+    # ✅ FIXED: Fetch today's trips with related route and bus data
     today_trips = Trip.objects.filter(
-        driver=driver, travel_date=today
+        driver=driver, 
+        travel_date=today
     ).select_related('route', 'bus').order_by('departure_time')
     
+    # Fetch upcoming trips for next few days (pending status only)
     upcoming_trips = Trip.objects.filter(
-        driver=driver, travel_date__gt=today, status='pending'
-    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
+        driver=driver, 
+        travel_date__gt=today, 
+        status='pending'
+    ).select_related('route', 'bus').order_by(
+        'travel_date', 
+        'departure_time'
+    )[:5]
     
+    # Get currently ongoing trip if any
     ongoing_trip = Trip.objects.filter(
-        driver=driver, status='ongoing'
+        driver=driver, 
+        status='ongoing'
     ).select_related('route', 'bus').first()
     
+    # Calculate passenger count and earnings for today's trips
     passenger_count = 0
     today_earnings = 0
     
     if today_trips.exists():
         for trip in today_trips:
+            # Find matching schedule for this trip
             schedule = Schedule.objects.filter(
                 route=trip.route, 
                 travel_date=trip.travel_date,
                 departure_time=trip.departure_time
             ).first()
             if schedule:
+                # Count confirmed bookings for this schedule
                 count = Booking.objects.filter(
-                    schedule=schedule, status='confirmed'
+                    schedule=schedule, 
+                    status='confirmed'
                 ).count()
                 passenger_count += count
+                # Calculate earnings (fare * passenger count)
                 fare = float(schedule.fare) if schedule.fare else 0
                 today_earnings += count * fare
     
+    # Count total completed trips for this driver
     trips_completed = driver.trips.filter(status='completed').count() if hasattr(driver, 'trips') else 0
     
+    # ✅ Context dictionary with ALL variables template expects
     context = {
         'driver': driver,
-        'user': user,
+        'user': user,  # Include user object for template access
         'today_trips': today_trips,
         'upcoming_trips': upcoming_trips,
         'ongoing_trip': ongoing_trip,
@@ -1103,8 +1478,10 @@ def driver_dashboard(request):
     }
     return render(request, 'app1/driver/driver_dashboard.html', context)
 
+
 @login_required
 def driver_profile(request):
+    """Driver profile page - Edit ALL fields including name, email, phone, address"""
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1150,8 +1527,10 @@ def driver_profile(request):
         'user': user,
     })
 
+
 @login_required
 def trip_detail(request, trip_id):
+    """Display detailed trip information with stop sequence"""
     if not hasattr(request.user, 'driver_profile'):
         messages.error(request, 'You are not registered as a driver.')
         return redirect('homepage')
@@ -1160,9 +1539,11 @@ def trip_detail(request, trip_id):
     context = {'trip': trip, 'stops': stops}
     return render(request, 'app1/driver/trip_detail.html', context)
 
+
 @login_required
 @require_http_methods(["POST"])
 def start_trip(request, trip_id):
+    """API endpoint to start a pending trip"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
@@ -1176,9 +1557,11 @@ def start_trip(request, trip_id):
             'message': 'Trip cannot be started in current status'
         }, status=400)
 
+
 @login_required
 @require_http_methods(["POST"])
 def complete_trip(request, trip_id):
+    """API endpoint to mark a trip as completed"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     trip = get_object_or_404(Trip, id=trip_id, driver=request.user.driver_profile)
@@ -1193,9 +1576,11 @@ def complete_trip(request, trip_id):
             'message': 'Trip cannot be completed in current status'
         }, status=400)
 
+
 @login_required
 @require_http_methods(["POST"])
 def update_stop_status(request, stop_id):
+    """API endpoint to update stop arrival/departure status"""
     if not hasattr(request.user, 'driver_profile'):
         return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
     stop = get_object_or_404(TripStop, id=stop_id)
@@ -1214,18 +1599,23 @@ def update_stop_status(request, stop_id):
     else:
         return JsonResponse({'success': False, 'message': 'Invalid action'}, status=400)
 
+
 @login_required
 def driver_logout(request):
+    """Handle driver logout with session cleanup"""
     logout(request)
     request.session.flush()
     messages.success(request, 'Logged out successfully.')
     return redirect('homepage')
 
-# ==================== PAYMENT & EMERGENCY (Keep as is) ====================
-# [Keep payment and emergency views unchanged]
+
+# =============================================================================
+# PAYMENT VIEWS - Pass purchase and transaction history
+# =============================================================================
 
 @login_required
 def payment_page(request):
+    """Display payment page with current pass and history"""
     current_pass = UserPass.objects.filter(
         user=request.user, 
         is_active=True, 
@@ -1249,8 +1639,10 @@ def payment_page(request):
         'active_pass_count': active_pass_count,
     })
 
+
 @login_required
 def purchase_pass(request):
+    """Handle pass purchase via API"""
     if request.method == 'POST':
         data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
         pass_type = data.get('pass_type')
@@ -1264,6 +1656,7 @@ def purchase_pass(request):
         start_date = timezone.now().date()
         end_date = start_date + timedelta(days=validity_days)
         
+        # Check for existing transaction to avoid duplicates
         existing_transaction = PaymentTransaction.objects.filter(
             user=request.user, 
             payment_type='pass',
@@ -1290,6 +1683,7 @@ def purchase_pass(request):
             pass_valid_until=end_date
         )
         
+        # Deactivate any existing active passes before creating new one
         UserPass.objects.filter(user=request.user, is_active=True).update(is_active=False)
         UserPass.objects.create(
             user=request.user, 
@@ -1314,8 +1708,10 @@ def purchase_pass(request):
         })
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
+
 @login_required
 def payment_history(request):
+    """View user's payment transaction history"""
     transactions = PaymentTransaction.objects.filter(
         user=request.user
     ).order_by('-created_at')
@@ -1327,8 +1723,10 @@ def payment_history(request):
         'total_spent': total_spent
     })
 
+
 @login_required
 def payment_success(request, transaction_id):
+    """Display payment success page"""
     transaction = get_object_or_404(
         PaymentTransaction, 
         transaction_id=transaction_id, 
@@ -1336,18 +1734,23 @@ def payment_success(request, transaction_id):
     )
     return render(request, 'app1/payment_success.html', {'transaction': transaction})
 
-# ==================== EMERGENCY ALERT VIEWS ====================
+
+# =============================================================================
+# EMERGENCY ALERT VIEWS - Emergency reporting system
+# =============================================================================
 
 try:
     from .models import EmergencyAlert, EmergencyContact
     
     @login_required
     def emergency_page(request):
+        """Display emergency alert page with call options"""
         contacts = EmergencyContact.objects.filter(is_active=True)
         return render(request, 'app1/emergency.html', {'contacts': contacts})
 
     @login_required
     def send_emergency_alert(request):
+        """API endpoint to send emergency alert"""
         if request.method == 'POST':
             try:
                 data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
@@ -1390,8 +1793,10 @@ try:
 
     @login_required
     def emergency_history(request):
+        """View user's past emergency alerts"""
         alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')
         return render(request, 'app1/emergency_history.html', {'alerts': alerts})
         
 except ImportError:
+    # EmergencyAlert/EmergencyContact models not found - skip these views
     pass
