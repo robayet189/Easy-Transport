@@ -108,7 +108,7 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 # =============================================================================
-# ✅ FIXED: Session & Cookie Settings for AJAX/SPA Compatibility
+# FIXED: Session & Cookie Settings for AJAX/SPA Compatibility
 # =============================================================================
 
 # Name of the cookie that stores the session ID
@@ -171,10 +171,7 @@ SPECTACULAR_SETTINGS = {
 # Additional settings for logging, caching, etc. can be added here as needed for testing documented information updates.
 
 """
-# ✅ Session cookies will be sent with AJAX requests
-SESSION_COOKIE_SAMESITE = 'Lax'
-# ✅ Session saved on every request for real-time updates
-SESSION_SAVE_EVERY_REQUEST = True
-# ✅ JavaScript can read CSRF token for AJAX
-CSRF_COOKIE_HTTPONLY = False
+SESSION_SAVE_EVERY_REQUEST = True - Saves session on every request
+SESSION_COOKIE_SAMESITE = 'Lax' - Allows cookies on same-site AJAX
+CSRF_COOKIE_HTTPONLY = False - Allows JS to read CSRF token
 """
