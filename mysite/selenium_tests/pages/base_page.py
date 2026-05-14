@@ -1,4 +1,4 @@
-# selenium_tests/pages/base_page.py
+# selenium_tests/pages/base_page.py 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -80,3 +80,5 @@ class BasePage:
     
     def wait_for_url_contains(self, text, timeout=10):
         WebDriverWait(self.driver, timeout).until(EC.url_contains(text))
+
+# Additional utility methods can be added here as needed, such as handling alerts, switching frames, etc.        
