@@ -1,3 +1,4 @@
+#modified confest.py to include test credentials and base_url fixture
 # selenium_tests/conftest.py
 import pytest
 from selenium import webdriver
