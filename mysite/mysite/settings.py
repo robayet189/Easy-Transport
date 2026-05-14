@@ -168,3 +168,6 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+
+# Additional settings for logging, caching, etc. can be added here as needed for testing documented information updates.
