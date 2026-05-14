@@ -332,7 +332,7 @@ def login_user(request):
         request.session.save()
         
         # FIXED: Determine user role with explicit priority: driver > admin > student
-        redirect_url = '/driver_dashboard/'  # Default for regular users
+        redirect_url = '/dashboard/'  # Default for regular users
         
         try:
             # Priority 1: Check if user has Driver profile (most specific check first)
@@ -345,7 +345,7 @@ def login_user(request):
                 if user_type == 'admin':
                     redirect_url = '/admin_page/dashboard/'
                 elif user_type == 'driver':
-                    redirect_url = '/driver/driver_dashboard/'
+                    redirect_url = '/driver/dashboard/'
                 # student/teacher/employee stay on default dashboard
                 else:
                     redirect_url = '/dashboard/'
@@ -355,15 +355,20 @@ def login_user(request):
             print(f"Role detection error: {e}")
             redirect_url = '/dashboard/'
         
-    
+        # Prepare welcome message based on role
+        full_name = user.get_full_name() or user.username
+        if 'admin' in redirect_url:
+            msg = f'Welcome back Admin, {full_name}!'
+        else:
+            msg = f'Welcome back, {full_name}!'
         
         # Return success response with redirect URL and user type
         return JsonResponse({
-          'success': True, 
-          'message': 'Login successful', 
-          'redirect_url': redirect_url,
-          'user_type': get_user_type_safe(user)
-    })
+            'success': True, 
+            'message': msg, 
+            'redirect_url': redirect_url,
+            'user_type': get_user_type_safe(user)
+        })
     
     # Authentication failed
     return JsonResponse(
@@ -1428,15 +1433,15 @@ def driver_dashboard(request):
     trips_completed = driver.trips.filter(status='completed').count() if hasattr(driver, 'trips') else 0
     
     context = {
-        'driver': driver,
-        'user': request.user,
-        'today_trips': today_trips,
-        'upcoming_trips': upcoming_trips,
-        'ongoing_trip': ongoing_trip,
-        'passenger_count': passenger_count,
-        'trips_completed': trips_completed,
-        'today_earnings': today_earnings,
-        'page_title': 'Driver Dashboard',
+    'driver': driver,              # ✅ Driver object
+    'user': request.user,          # ✅ User object
+    'today_trips': today_trips,    # ✅ QuerySet
+    'upcoming_trips': upcoming_trips,  # ✅ QuerySet
+    'ongoing_trip': ongoing_trip,  # ✅ Trip or None
+    'passenger_count': passenger_count,  # ✅ Integer
+    'trips_completed': trips_completed,  # ✅ Integer
+    'today_earnings': today_earnings,    # ✅ Float
+    'page_title': 'Driver Dashboard',    # ✅ String
     }
     return render(request, 'app1/driver/driver_dashboard.html', context)
 
