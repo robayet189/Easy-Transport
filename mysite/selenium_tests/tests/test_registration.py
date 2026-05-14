@@ -24,3 +24,7 @@ class TestRegistration:
         msg = page.get_toast_message()
         assert msg is not None, "Success toast not shown"
         assert "success" in msg.lower() or "created" in msg.lower(), f"Unexpected message: {msg}"
+
+
+
+# Additional registration tests for validation errors, duplicate emails, etc. can be added here as needed. But registration failure due to validation errors should not be treated as test failure - just return the error message and let the test assert on it.        
