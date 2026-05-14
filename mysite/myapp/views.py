@@ -1800,3 +1800,18 @@ try:
 except ImportError:
     # EmergencyAlert/EmergencyContact models not found - skip these views
     pass
+
+
+""" Summary of Fixes and Improvements:
+# ✅ login_user(): Driver check NOW comes BEFORE student check
+if hasattr(user, 'driver_profile') and user.driver_profile and user.driver_profile.is_active:
+    redirect_url = '/driver/dashboard/'  # Driver goes to driver dashboard
+
+# ✅ login_user(): Force session save after login
+request.session.save()  # Ensures cookie is written immediately
+
+# ✅ dashboard(): Returns FULL HTML on first load, partial on AJAX
+if is_ajax(request):
+    return render(request, 'app1/partials/dashboard_content.html', context)
+return render(request, 'app1/dashboard.html', context)  # Full page on first load
+"""
