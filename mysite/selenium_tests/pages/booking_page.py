@@ -148,3 +148,7 @@ class BookingPage(BasePage):
         except Exception as e:
             print(f"Cancel booking error: {e}")
             return False
+        
+
+
+# Additional methods for checking booking details, modifying bookings, etc. can be added here as needed.But bookings not found or cancel button not available should not be treated as test failure - just skip those cases.        
