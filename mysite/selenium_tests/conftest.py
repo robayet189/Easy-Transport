@@ -35,7 +35,7 @@ def test_admin_credentials():
 
 @pytest.fixture(scope="session")
 def test_driver_credentials():
-    return {"username": "driver@test.com", "password": "DriverPass123!"}
+    return {"username": "Sumaiya@gmail.com", "password": "Sumaiya@12"}
 
 @pytest.fixture(scope="session")
 def test_user_credentials():

@@ -337,7 +337,7 @@ def login_user(request):
         try:
             # Priority 1: Check if user has Driver profile (most specific check first)
             if hasattr(user, 'driver_profile') and user.driver_profile and user.driver_profile.is_active:
-                redirect_url = '/driver/driver_dashboard/'
+                redirect_url = '/driver/dashboard/'
             
             # Priority 2: Check UserProfile.user_type for admin
             elif hasattr(user, 'profile') and user.profile:
