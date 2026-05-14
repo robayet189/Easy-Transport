@@ -332,12 +332,12 @@ def login_user(request):
         request.session.save()
         
         # FIXED: Determine user role with explicit priority: driver > admin > student
-        redirect_url = '/dashboard/'  # Default for regular users
+        redirect_url = '/driver_dashboard/'  # Default for regular users
         
         try:
             # Priority 1: Check if user has Driver profile (most specific check first)
             if hasattr(user, 'driver_profile') and user.driver_profile and user.driver_profile.is_active:
-                redirect_url = '/driver/dashboard/'
+                redirect_url = '/driver/driver_dashboard/'
             
             # Priority 2: Check UserProfile.user_type for admin
             elif hasattr(user, 'profile') and user.profile:
@@ -345,7 +345,7 @@ def login_user(request):
                 if user_type == 'admin':
                     redirect_url = '/admin_page/dashboard/'
                 elif user_type == 'driver':
-                    redirect_url = '/driver/dashboard/'
+                    redirect_url = '/driver/driver_dashboard/'
                 # student/teacher/employee stay on default dashboard
                 else:
                     redirect_url = '/dashboard/'
@@ -355,20 +355,15 @@ def login_user(request):
             print(f"Role detection error: {e}")
             redirect_url = '/dashboard/'
         
-        # Prepare welcome message based on role
-        full_name = user.get_full_name() or user.username
-        if 'admin' in redirect_url:
-            msg = f'Welcome back Admin, {full_name}!'
-        else:
-            msg = f'Welcome back, {full_name}!'
+    
         
         # Return success response with redirect URL and user type
         return JsonResponse({
-            'success': True, 
-            'message': msg, 
-            'redirect_url': redirect_url,
-            'user_type': get_user_type_safe(user)
-        })
+          'success': True, 
+          'message': 'Login successful', 
+          'redirect_url': redirect_url,
+          'user_type': get_user_type_safe(user)
+    })
     
     # Authentication failed
     return JsonResponse(
@@ -1381,91 +1376,60 @@ def driver_get_passengers(request):
     
     return JsonResponse({'success': True, 'passengers': passengers})
 
-
 @login_required
 def driver_dashboard(request):
-    """
-    Driver Dashboard - ONLY for driver users
-    FIXED: Strict role guard at the VERY BEGINNING + proper data fetch
-    
-    This view handles the driver's main dashboard. It:
-    1. Immediately redirects non-drivers to their correct dashboard
-    2. Loads today's trips, passenger count, and earnings for drivers
-    3. Returns full HTML template with all necessary context
-    
-    Args:
-        request: Django HTTP request object (must be authenticated)
-        
-    Returns:
-        HttpResponse: Rendered driver dashboard template
-    """
-    user = request.user
-    
-    # FIXED: IMMEDIATE role check - redirect BEFORE any processing
-    # This prevents student/admin from ever seeing driver dashboard content
-    if not hasattr(user, 'driver_profile'):
-        user_type = get_user_type_safe(user)
+    if not hasattr(request.user, 'driver_profile'):
+        user_type = get_user_type_safe(request.user)
         if user_type == 'admin':
             return redirect('admin_dashboard')
         else:
-            return redirect('dashboard')  # student/teacher/employee
+            return redirect('dashboard')
     
-    # Only drivers reach this point
-    driver = user.driver_profile
+    driver = request.user.driver_profile
     today = timezone.now().date()
     
-    # FIXED: Fetch today's trips with related route and bus data
+  
     today_trips = Trip.objects.filter(
         driver=driver, 
         travel_date=today
     ).select_related('route', 'bus').order_by('departure_time')
-    
-    # Fetch upcoming trips for next few days (pending status only)
+
     upcoming_trips = Trip.objects.filter(
         driver=driver, 
         travel_date__gt=today, 
         status='pending'
-    ).select_related('route', 'bus').order_by(
-        'travel_date', 
-        'departure_time'
-    )[:5]
+    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
     
-    # Get currently ongoing trip if any
+   
     ongoing_trip = Trip.objects.filter(
         driver=driver, 
         status='ongoing'
     ).select_related('route', 'bus').first()
     
-    # Calculate passenger count and earnings for today's trips
+   
     passenger_count = 0
     today_earnings = 0
     
-    if today_trips.exists():
-        for trip in today_trips:
-            # Find matching schedule for this trip
-            schedule = Schedule.objects.filter(
-                route=trip.route, 
-                travel_date=trip.travel_date,
-                departure_time=trip.departure_time
-            ).first()
-            if schedule:
-                # Count confirmed bookings for this schedule
-                count = Booking.objects.filter(
-                    schedule=schedule, 
-                    status='confirmed'
-                ).count()
-                passenger_count += count
-                # Calculate earnings (fare * passenger count)
-                fare = float(schedule.fare) if schedule.fare else 0
-                today_earnings += count * fare
+    for trip in today_trips:
+        schedule = Schedule.objects.filter(
+            route=trip.route, 
+            travel_date=trip.travel_date,
+            departure_time=trip.departure_time
+        ).first()
+        if schedule:
+            count = Booking.objects.filter(
+                schedule=schedule, 
+                status='confirmed'
+            ).count()
+            passenger_count += count
+            fare = float(schedule.fare) if schedule.fare else 0
+            today_earnings += count * fare
     
-    # Count total completed trips for this driver
     trips_completed = driver.trips.filter(status='completed').count() if hasattr(driver, 'trips') else 0
     
-    # Context dictionary with ALL variables template expects
     context = {
         'driver': driver,
-        'user': user,  # Include user object for template access
+        'user': request.user,
         'today_trips': today_trips,
         'upcoming_trips': upcoming_trips,
         'ongoing_trip': ongoing_trip,
