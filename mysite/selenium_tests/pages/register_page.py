@@ -43,3 +43,9 @@ class RegisterPage(BasePage):
 
     def get_toast_message(self):
         return self.get_text(self.TOAST_MSG) if self.is_visible(self.TOAST_MSG) else None
+    
+
+
+
+
+# Additional methods for validating form errors, checking field visibility, etc. can be added here as needed. But registration failure due to validation errors should not be treated as test failure - just return the error message and let the test assert on it.    
