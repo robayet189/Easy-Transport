@@ -600,7 +600,7 @@
     });
 
     // ========================================================================
-    // ✅ FIXED: SPA NAVIGATION WITH PROPER INITIAL LOAD HANDLING
+    // FIXED: SPA NAVIGATION WITH PROPER INITIAL LOAD HANDLING
     // Handles navigation between pages without full page reload
     // Ensures data loads correctly on first visit AND AJAX navigation
     // ========================================================================
@@ -625,7 +625,7 @@
                         'X-Requested-With': 'XMLHttpRequest',  // Mark as AJAX request
                         'Accept': 'text/html, */*; q=0.01'      // Accept HTML response
                     },
-                    credentials: 'same-origin'  // ✅ CRITICAL: Include session cookies for authentication
+                    credentials: 'same-origin'  // CRITICAL: Include session cookies for authentication
                 });
                 
                 // Handle HTTP errors (401 Unauthorized, 403 Forbidden, etc.)
@@ -736,45 +736,33 @@
             }
         });
 
-        // ✅ FIXED: Initialize on first page load
+        // FIXED: Initialize on first page load
         // This ensures dashboard data loads correctly when user arrives via login redirect
         updateActiveLink(window.location.href);
         initPageScripts();
         
-        // ✅ CRITICAL: If page was loaded via redirect (not SPA navigation), 
+        // CRITICAL: If page was loaded via redirect (not SPA navigation), 
         // trigger a data refresh to ensure bookings/schedule are visible immediately
         // This solves the "need to refresh to see data" problem
         const isInitialLoad = !window.history.state || !window.history.state.url;
-        if (isInitialLoad && window.location.pathname === '/dashboard/') {
+        if (isInitialLoad && (window.location.pathname === '/dashboard/' || window.location.pathname === '/schedule/')) {
             // Small delay to ensure DOM is fully ready
             setTimeout(() => {
-                // Check if bookings container exists but is empty
-                const bookingsContainer = document.querySelector('.bookings-table tbody');
-                if (bookingsContainer && bookingsContainer.children.length === 0) {
+                // Check if content container exists but is empty
+                const hasContent = contentDiv.querySelector('table, .stats-grid, .route-card, .card');
+                if (!hasContent || contentDiv.innerHTML.trim() === '') {
                     // If empty, reload the page to fetch fresh data from server
                     // This is a fallback for edge cases where initial load fails
                     window.location.reload();
                 }
-            }, 500);
+            }, 800);
         }
     });
 </script>
 </body>
 </html>
-
-
 <!--
-✅ Fetch includes credentials: 'same-origin' for session cookies
-credentials: 'same-origin'
-
- ✅ Initial load detection + fallback reload if data is missing
-const isInitialLoad = !window.history.state || !window.history.state.url;
-if (isInitialLoad && window.location.pathname === '/dashboard/') {
-    setTimeout(() => {
-        const bookingsContainer = document.querySelector('.bookings-table tbody');
-        if (bookingsContainer && bookingsContainer.children.length === 0) {
-            window.location.reload();  // Fallback reload if data missing
-        }
-    }, 500);
-}
+Fetch includes credentials: 'same-origin' for session cookies
+Initial load detection + fallback reload if data is missing
+Proper error handling for 401/403 responses
 -->
