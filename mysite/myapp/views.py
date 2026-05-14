@@ -291,7 +291,7 @@ def register_user(request):
 def login_user(request):
     """
     Handle user authentication via POST request.
-    ✅ FIXED: Proper role-based redirect with immediate driver detection.
+    FIXED: Proper role-based redirect with immediate driver detection.
     
     Args:
         request: Django HTTP POST request with login credentials
@@ -328,10 +328,10 @@ def login_user(request):
         # Log the user in (creates session)
         login(request, user)
         
-        # ✅ FIXED: Force session save to ensure cookie is written immediately
+        # FIXED: Force session save to ensure cookie is written immediately
         request.session.save()
         
-        # ✅ FIXED: Determine user role with explicit priority: driver > admin > student
+        # FIXED: Determine user role with explicit priority: driver > admin > student
         redirect_url = '/dashboard/'  # Default for regular users
         
         try:
@@ -510,8 +510,8 @@ def password_reset_request(request):
 @login_required
 def dashboard(request):
     """
-    ✅ Student/Teacher/Employee Dashboard - ONLY for non-admin, non-driver users
-    ✅ FIXED: Proper role-based access control + correct bookings display on first load
+    Student/Teacher/Employee Dashboard - ONLY for non-admin, non-driver users
+    FIXED: Proper role-based access control + correct bookings display on first load
     
     This view handles the main user dashboard. It:
     1. Redirects admin/driver to their respective dashboards immediately
@@ -526,7 +526,7 @@ def dashboard(request):
     """
     user = request.user
     
-    # ✅ FIXED: IMMEDIATE role check at the VERY BEGINNING - redirect BEFORE any processing
+    # FIXED: IMMEDIATE role check at the VERY BEGINNING - redirect BEFORE any processing
     # This prevents admin/driver from ever seeing student dashboard content
     user_type = get_user_type_safe(user)
     
@@ -535,12 +535,12 @@ def dashboard(request):
     elif user_type == 'driver':
         return redirect('driver_dashboard')
     
-    # ✅ Only student/teacher/employee reach this point
+    # Only student/teacher/employee reach this point
     # Get or create user profile for additional data
     profile, _ = UserProfile.objects.get_or_create(user=user)
     today = timezone.now().date()
     
-    # ✅ FIXED: Upcoming bookings query - fetch confirmed bookings for future dates
+    # FIXED: Upcoming bookings query - fetch confirmed bookings for future dates
     # Use select_related to optimize database queries (avoid N+1 problem)
     upcoming_bookings = Booking.objects.filter(
         user=user, 
@@ -554,7 +554,7 @@ def dashboard(request):
         'schedule__departure_time'  # Then by time
     )[:5]  # Limit to 5 upcoming bookings
     
-    # ✅ FIXED: Past bookings query - fetch confirmed bookings for past dates
+    # FIXED: Past bookings query - fetch confirmed bookings for past dates
     past_bookings = Booking.objects.filter(
         user=user, 
         status='confirmed', 
@@ -566,45 +566,42 @@ def dashboard(request):
         '-schedule__travel_date'  # Most recent first (descending)
     )[:3]  # Limit to 3 past bookings
     
-    # ✅ FIXED: Calculate total confirmed bookings count
-    total_bookings = Booking.objects.filter(
-        user=user, 
-        status='confirmed'
-    ).count()
+    # FIXED: Calculate total confirmed bookings count
+    total_bookings = Booking.objects.filter(user=user, status='confirmed').count()
     
-    # ✅ FIXED: Calculate total amount spent on confirmed bookings
+    # FIXED: Calculate total amount spent on confirmed bookings
     total_spent = Booking.objects.filter(
         user=user, 
         status='confirmed'
     ).aggregate(total=Sum('amount'))['total'] or 0  # Return 0 if no bookings
     
-    # ✅ FIXED: Check if user has an active transport pass
+    # FIXED: Check if user has an active transport pass
     has_active_pass = UserPass.objects.filter(
         user=user, 
         is_active=True, 
         end_date__gte=timezone.now().date()  # Pass not expired
     ).exists()
     
-    # ✅ FIXED: Context dictionary with ALL variables template expects
+    # FIXED: Context dictionary with ALL variables template expects
     context = {
         'first_name': user.first_name or user.username,  # Fallback to username if no first name
         'user_type': user_type,  # Pass user type to template for conditional display
         'profile': profile,  # Full profile object for template access
         'pass_status': 'Active' if profile.is_pass_active else 'Inactive',
         'next_payment': '৳1,200 due on 15th' if profile.is_pass_active else 'No active pass',
-        'upcoming_bookings': upcoming_bookings,  # ✅ Critical: Correct variable name for template
-        'past_bookings': past_bookings,  # ✅ Critical: Correct variable name for template
+        'upcoming_bookings': upcoming_bookings,  # Critical: Correct variable name for template
+        'past_bookings': past_bookings,  # Critical: Correct variable name for template
         'total_bookings': total_bookings,
         'total_spent': total_spent,
         'has_active_pass': has_active_pass,
         'page_title': 'Dashboard',  # For browser tab title
     }
     
-    # ✅ FIXED: Return full HTML on first load, partial HTML on AJAX requests
+    # FIXED: Return full HTML on first load, partial HTML on AJAX requests
     # This ensures dashboard works both on direct navigation AND SPA navigation
     if is_ajax(request):
         return render(request, 'app1/partials/dashboard_content.html', context)
-    return render(request, 'app1/dashboard.html', context)
+    return render(request, 'app1/dashboard.html', context)  # Full page on direct access
 
 
 @login_required
@@ -639,9 +636,10 @@ def schedule(request):
             'evening_routes': evening_routes
         }
         
+        # FIXED: Return full HTML on first load, partial on AJAX
         if is_ajax(request):
             return render(request, 'app1/partials/schedule_content.html', context)
-        return render(request, 'app1/schedule.html', context)
+        return render(request, 'app1/schedule.html', context)  # Full page on direct access
     except Exception as e:
         # Return empty schedule with error message if query fails
         return render(request, 'app1/schedule.html', {'routes': [], 'error': str(e)})
@@ -1282,7 +1280,7 @@ def driver_login(request):
             if driver.is_approved:
                 if driver.is_active:
                     login(request, user)
-                    request.session.save()  # ✅ FIXED: Force session save
+                    request.session.save()  # FIXED: Force session save
                     return JsonResponse({
                         'success': True, 
                         'message': 'Login successful', 
@@ -1387,8 +1385,8 @@ def driver_get_passengers(request):
 @login_required
 def driver_dashboard(request):
     """
-    ✅ Driver Dashboard - ONLY for driver users
-    ✅ FIXED: Strict role guard at the VERY BEGINNING + proper data fetch
+    Driver Dashboard - ONLY for driver users
+    FIXED: Strict role guard at the VERY BEGINNING + proper data fetch
     
     This view handles the driver's main dashboard. It:
     1. Immediately redirects non-drivers to their correct dashboard
@@ -1403,7 +1401,7 @@ def driver_dashboard(request):
     """
     user = request.user
     
-    # ✅ FIXED: IMMEDIATE role check - redirect BEFORE any processing
+    # FIXED: IMMEDIATE role check - redirect BEFORE any processing
     # This prevents student/admin from ever seeing driver dashboard content
     if not hasattr(user, 'driver_profile'):
         user_type = get_user_type_safe(user)
@@ -1412,11 +1410,11 @@ def driver_dashboard(request):
         else:
             return redirect('dashboard')  # student/teacher/employee
     
-    # ✅ Only drivers reach this point
+    # Only drivers reach this point
     driver = user.driver_profile
     today = timezone.now().date()
     
-    # ✅ FIXED: Fetch today's trips with related route and bus data
+    # FIXED: Fetch today's trips with related route and bus data
     today_trips = Trip.objects.filter(
         driver=driver, 
         travel_date=today
@@ -1464,7 +1462,7 @@ def driver_dashboard(request):
     # Count total completed trips for this driver
     trips_completed = driver.trips.filter(status='completed').count() if hasattr(driver, 'trips') else 0
     
-    # ✅ Context dictionary with ALL variables template expects
+    # Context dictionary with ALL variables template expects
     context = {
         'driver': driver,
         'user': user,  # Include user object for template access
@@ -1800,7 +1798,6 @@ try:
 except ImportError:
     # EmergencyAlert/EmergencyContact models not found - skip these views
     pass
-
 
 """ Summary of Fixes and Improvements:
 # ✅ login_user(): Driver check NOW comes BEFORE student check
