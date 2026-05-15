@@ -1,13 +1,5 @@
 import os
 import sys
-
-# ✅ STEP 1: Set Django settings BEFORE importing anything Django-related
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
-
-# ✅ STEP 2: Initialize Django app registry
-import django
-django.setup()
-
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -16,6 +8,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
+# ✅ STEP 1: Set Django settings BEFORE importing anything Django-related
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+
+# ✅ STEP 2: Initialize Django app registry (only once, at module level)
+import django
+django.setup()
+
 # ✅ STEP 3: Now it's safe to import Django models
 from django.contrib.auth.models import User
 from myapp.models import UserProfile, Route, Bus, Schedule
@@ -23,7 +22,7 @@ from django.utils import timezone
 from datetime import datetime
 
 # =========================================================================
-# WebDriver Fixture (Function Scope)
+# WebDriver Fixture (Function Scope for Isolation)
 # =========================================================================
 @pytest.fixture(scope="function")
 def driver():
@@ -60,15 +59,15 @@ def test_user_credentials():
     return {"username": "student@test.com", "password": "TestPass123!"}
 
 # =========================================================================
-# ✅ Direct Dev DB Seeding (Bypasses pytest-django's test DB isolation)
+# ✅ Database Seeding Fixture (FIXED: Removed setup_test_environment)
 # =========================================================================
 @pytest.fixture(scope="session", autouse=True)
 def seed_dev_database():
     """Seed the main development database so Selenium tests have data"""
-    from django.test.utils import setup_test_environment
-    setup_test_environment()
+    # ✅ FIX: pytest-django already calls setup_test_environment()
+    # Do NOT call it again here
     
-    # Admin
+    # Admin user
     admin, _ = User.objects.get_or_create(
         username="admin", 
         defaults={"email": "admin@test.com", "is_active": True, "is_staff": True}
@@ -80,7 +79,7 @@ def seed_dev_database():
         defaults={"user_type": "admin", "phone": "01700000001", "institution_type": "university"}
     )
 
-    # Driver
+    # Driver user
     driver_user, _ = User.objects.get_or_create(
         username="driver", 
         defaults={"email": "driver@test.com", "is_active": True}
@@ -92,7 +91,7 @@ def seed_dev_database():
         defaults={"user_type": "driver", "phone": "01700000002", "institution_type": "university"}
     )
 
-    # Student
+    # Student user
     student, _ = User.objects.get_or_create(
         username="student", 
         defaults={"email": "student@test.com", "is_active": True}
@@ -104,7 +103,7 @@ def seed_dev_database():
         defaults={"user_type": "student", "phone": "01700000003", "institution_type": "university", "institution_id": "STU001"}
     )
 
-    # Route & Bus & Schedule (for booking tests)
+    # Route, Bus, Schedule for booking tests
     route, _ = Route.objects.get_or_create(
         code="R1", 
         defaults={"start": "Main Gate", "end": "Academic Building", "distance_km": 5.5}
