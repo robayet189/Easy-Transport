@@ -64,7 +64,7 @@ def get_profile_context(user):
 
 def homepage(request):
     """Render the homepage template"""
-    return render(request, 'app1/Homepage.html')
+    return render(request, 'app1/homepage.html')
 
 
 def register_page(request):
