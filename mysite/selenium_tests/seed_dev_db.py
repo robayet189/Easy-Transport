@@ -4,19 +4,26 @@ Seed script for Easy Transport development database.
 Run this BEFORE running Selenium tests to ensure test users and data exist.
 
 Usage:
-    cd mysite
-    python manage.py shell < selenium_tests/seed_dev_db.py
-    OR
-    python selenium_tests/seed_dev_db.py  (if run from project root)
+    cd C:\Users\masfi\OneDrive\Desktop\Easy-Transport
+    python mysite/selenium_tests/seed_dev_db.py
 """
 import os
 import sys
-import django
 
-# Setup Django
+# ✅ STEP 1: Add project root to Python path
+# This ensures Django can find the 'mysite' module
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# ✅ STEP 2: Set Django settings module BEFORE importing django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+
+# ✅ STEP 3: Initialize Django
+import django
 django.setup()
 
+# ✅ STEP 4: Now import Django models safely
 from django.contrib.auth.models import User
 from myapp.models import UserProfile, Route, Bus, Schedule
 from django.utils import timezone
