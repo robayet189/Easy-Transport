@@ -1,51 +1,59 @@
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC  # ✅ Must have this line
 from .base_page import BasePage
-import time
-import random
 
 class RegisterPage(BasePage):
-    FULL_NAME = (By.ID, "fullName")
-    EMAIL = (By.ID, "email")
-    PASSWORD = (By.ID, "password")
-    CONFIRM_PWD = (By.ID, "confirmPwd")
-    PHONE = (By.ID, "phone")
-    INST_TYPE_BTN = (By.ID, "instTypeBtn")
-    USER_TYPE_BTN = (By.ID, "userTypeBtn")
-    INST_ID = (By.ID, "institutionId")
-    REGISTER_BTN = (By.CSS_SELECTOR, ".btn-register")
-    TOAST_MSG = (By.ID, "toastMsg")
-
-    def register(self, full_name, email, password, phone, inst_type, user_type, inst_id):
-        self.enter_text(self.FULL_NAME, full_name)
-        self.enter_text(self.EMAIL, email)
-        self.enter_text(self.PASSWORD, password)
-        self.enter_text(self.CONFIRM_PWD, password)
-        self.enter_text(self.PHONE, phone)
-        
-        # Custom Dropdown: Institution Type
-        self.click(self.INST_TYPE_BTN)
-        inst_menu = (By.ID, "instTypeMenu")
-        self.wait.until(EC.visibility_of_element_located(inst_menu))
-        option = (By.XPATH, f"//div[@id='instTypeMenu']//div[contains(text(), '{inst_type}')]")
-        self.click(option)
-        
-        # Custom Dropdown: User Type
-        self.click(self.USER_TYPE_BTN)
-        user_menu = (By.ID, "userTypeMenu")
-        self.wait.until(EC.visibility_of_element_located(user_menu))
-        option = (By.XPATH, f"//div[@id='userTypeMenu']//div[contains(text(), '{user_type}')]")
-        self.click(option)
-        
-        self.enter_text(self.INST_ID, inst_id)
-        self.click(self.REGISTER_BTN)
-
-    def get_toast_message(self):
-        return self.get_text(self.TOAST_MSG) if self.is_visible(self.TOAST_MSG) else None
+    """Register page object"""
     
-
-
-
-
-# Additional methods for validating form errors, checking field visibility, etc. can be added here as needed. But registration failure due to validation errors should not be treated as test failure - just return the error message and let the test assert on it.    
+    # Locators
+    FULL_NAME_INPUT = (By.NAME, "full_name")
+    EMAIL_INPUT = (By.NAME, "email")
+    PHONE_INPUT = (By.NAME, "phone")
+    PASSWORD_INPUT = (By.NAME, "password")
+    CONFIRM_PASSWORD_INPUT = (By.NAME, "confirm_password")
+    USER_TYPE_SELECT = (By.NAME, "user_type")
+    REGISTER_BUTTON = (By.XPATH, "//button[@type='submit']")
+    
+    def __init__(self, driver, base_url):
+        super().__init__(driver, base_url)
+    
+    def open_register_page(self):
+        """Open register page"""
+        self.open_url("/register/")
+    
+    def enter_full_name(self, name):
+        """Enter full name"""
+        self.enter_text(self.FULL_NAME_INPUT, name)
+    
+    def enter_email(self, email):
+        """Enter email"""
+        self.enter_text(self.EMAIL_INPUT, email)
+    
+    def enter_phone(self, phone):
+        """Enter phone"""
+        self.enter_text(self.PHONE_INPUT, phone)
+    
+    def enter_password(self, password):
+        """Enter password"""
+        self.enter_text(self.PASSWORD_INPUT, password)
+    
+    def enter_confirm_password(self, password):
+        """Enter confirm password"""
+        self.enter_text(self.CONFIRM_PASSWORD_INPUT, password)
+    
+    def select_user_type(self, user_type):
+        """Select user type"""
+        self.click_element(self.USER_TYPE_SELECT)
+        # Implementation depends on your select element type
+    
+    def click_register(self):
+        """Click register button"""
+        self.click_element(self.REGISTER_BUTTON)
+    
+    def register(self, full_name, email, phone, password, user_type="student"):
+        """Complete registration process"""
+        self.enter_full_name(full_name)
+        self.enter_email(email)
+        self.enter_phone(phone)
+        self.enter_password(password)
+        self.enter_confirm_password(password)
+        self.click_register()
