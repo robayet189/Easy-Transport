@@ -1,4 +1,4 @@
-﻿from django.urls import path
+from django.urls import path
 from . import views, views_admin
 
 
@@ -134,9 +134,8 @@ urlpatterns = [
 
     # ================= BUS TRACKING URLs =================
     path('track-bus/', views.track_bus, name='track_bus'),
-    path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='update_bus_location'),
-    path('api/bus/<int:bus_id>/location/', views.get_bus_location, name='get_bus_location'),
-    path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
+    path('api/bus/<int:bus_id>/update/', views.update_bus_location, name='api_update_location'),
+    path('api/buses/locations/', views.get_all_buses_location, name='api_all_bus_locations'),
     path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
 
     # ================= PAYMENT URLs =================
