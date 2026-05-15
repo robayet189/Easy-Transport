@@ -1,0 +1,10 @@
+Django>=6.0,<6.1
+djangorestframework>=3.14
+drf-spectacular>=0.27
+channels>=4.0
+asgiref>=3.7
+sqlparse>=0.4
+whitenoise>=6.0
+
+# Optional (uncomment if using Postgres in production)
+# psycopg2-binary>=2.9
