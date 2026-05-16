@@ -50,11 +50,11 @@ from rest_framework.response import Response
 # ==================== HELPER FUNCTIONS ====================
 
 def is_ajax(request):
-<<<<<<< HEAD
+
     """Check if request is AJAX"""
-=======
+
     """Check if request is AJAX - Support both jQuery & Fetch API"""
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         request.headers.get('Accept') == 'text/html, */*; q=0.01'
 
@@ -848,11 +848,11 @@ def track_bus_api(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def update_bus_location(request, bus_id):
-<<<<<<< HEAD
+
     """API for the Flutter mobile app to push GPS coordinates to"""
-=======
+
     """API endpoint to update bus GPS location"""
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
     try:
         bus = Bus.objects.get(id=bus_id)
         lat = request.data.get('lat') or request.data.get('latitude')
@@ -865,8 +865,8 @@ def update_bus_location(request, bus_id):
         return Response({"error": "Bus not found"}, status=404)
 
 @api_view(['GET'])
-<<<<<<< HEAD
-=======
+
+
 def get_bus_location(request, bus_id):
     """API endpoint to retrieve latest bus location"""
     try:
@@ -884,7 +884,7 @@ def get_bus_location(request, bus_id):
         return Response({"error": "Bus not found"}, status=404)
 
 @api_view(['GET'])
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
 def get_all_buses_location(request):
     """API for the Web Dashboard to fetch all bus locations"""
     buses = Bus.objects.filter(is_active=True).prefetch_related('locations', 'assigned_drivers')
@@ -1203,16 +1203,16 @@ def driver_get_passengers(request):
 
 @login_required
 def driver_dashboard(request):
-<<<<<<< HEAD
+
     """Driver dashboard - Shows ONLY driver's assigned routes and schedules"""
-=======
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
+
     if not hasattr(request.user, 'driver_profile'):
         return redirect('homepage')
 
     driver = request.user.driver_profile
     today = timezone.now().date()
-<<<<<<< HEAD
+
     assigned_route = driver.assigned_route
 
     # Trips
@@ -1274,14 +1274,14 @@ def driver_dashboard(request):
                 })
 
     # Stats
-=======
+
     
-    # ✅ ট্রিপ ডাটা ফেচ
+  
     today_trips = Trip.objects.filter(driver=driver, travel_date=today).select_related('route', 'bus').order_by('departure_time')
     upcoming_trips = Trip.objects.filter(driver=driver, travel_date__gt=today, status='pending').select_related('route', 'bus').order_by('travel_date', 'departure_time')[:5]
     ongoing_trip = Trip.objects.filter(driver=driver, status='ongoing').select_related('route', 'bus').first()
     
-    # ✅ রিয়েল-টাইম প্যাসেঞ্জার ও আয় ক্যালকুলেশন
+
     passenger_count = 0
     today_earnings = 0.0
     
@@ -1291,7 +1291,7 @@ def driver_dashboard(request):
             passenger_count += count
             today_earnings += count * float(trip.schedule.fare)
             
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
     trips_completed = driver.trips.filter(status='completed').count()
     total_trips_count = all_trips.count()
     
@@ -1314,8 +1314,8 @@ def driver_dashboard(request):
 
     return render(request, 'app1/driver/driver_dashboard.html', context)
 
-<<<<<<< HEAD
-=======
+
+
 # ✅ NEW: Real-time Driver Dashboard API Endpoint
 @login_required
 def driver_dashboard_api(request):
@@ -1370,7 +1370,7 @@ def driver_dashboard_api(request):
     }
     
     return JsonResponse(response_data)
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
 
 @login_required
 def driver_profile(request):

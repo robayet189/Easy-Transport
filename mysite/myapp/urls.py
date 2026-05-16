@@ -174,9 +174,9 @@ urlpatterns = [
     path('api/buses/locations/', views.get_all_buses_location, name='get_all_buses_location'),
     path('track-bus-api/', views.track_bus_api, name='track_bus_api'),
 
-<<<<<<< HEAD
+
     # ================= PAYMENT SYSTEM =================
-=======
+
     # ==================== CHAT SYSTEM URLs ====================
     path('chat/', views.chat_list, name='chat_list'),
     path('chat/<int:room_id>/', views.chat_room, name='chat_room'),
@@ -208,7 +208,7 @@ urlpatterns = [
 #payment
 
 
->>>>>>> 28cefd70405b01cf6cee8cfa8769a0de43e29fe4
+
     path('payments/', views.payment_page, name='payments'),
     path('purchase-pass/', views.purchase_pass, name='purchase_pass'),
     path('payment-history/', views.payment_history, name='payment_history'),
