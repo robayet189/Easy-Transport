@@ -1447,3 +1447,357 @@ def emergency_history(request):
     """View user's past emergency alerts"""
     alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'app1/emergency_history.html', {'alerts': alerts})
+
+
+# ==================== ADDITIONAL DRIVER API ENDPOINTS ====================
+# ✅ THESE 3 FUNCTIONS WERE MISSING - NOW ADDED AT THE END
+
+@login_required
+def driver_trips_api(request):
+    """API endpoint to get driver's trips as JSON"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'error': 'Not a driver'}, status=403)
+
+    driver = request.user.driver_profile
+    today = timezone.now().date()
+
+    # Get trips for this driver
+    trips = Trip.objects.filter(
+        driver=driver, travel_date__gte=today
+    ).select_related('route', 'bus').order_by('travel_date', 'departure_time')
+
+    trips_data = []
+    for trip in trips:
+        # Get schedule to count passengers
+        schedule = Schedule.objects.filter(
+            route=trip.route,
+            travel_date=trip.travel_date,
+            departure_time=trip.departure_time
+        ).first()
+        
+        passenger_count = 0
+        if schedule:
+            passenger_count = Booking.objects.filter(
+                schedule=schedule, status='confirmed'
+            ).count()
+
+        trips_data.append({
+            'id': trip.id,
+            'route_code': trip.route.code,
+            'start': trip.route.start,
+            'end': trip.route.end,
+            'departure_time': trip.departure_time.strftime('%I:%M %p'),
+            'travel_date': trip.travel_date.strftime('%b %d, %Y'),
+            'status': trip.status,
+            'bus_number': trip.bus.bus_number if trip.bus else '',
+            'passenger_count': passenger_count,
+        })
+
+    return JsonResponse({'success': True, 'trips': trips_data})
+
+
+@login_required
+def driver_routes_api(request):
+    """API endpoint - returns ONLY the driver's assigned route"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'error': 'Not a driver'}, status=403)
+
+    driver = request.user.driver_profile
+    assigned_route = driver.assigned_route
+
+    if assigned_route:
+        route_data = {
+            'id': assigned_route.id,
+            'code': assigned_route.code,
+            'start': assigned_route.start,
+            'end': assigned_route.end,
+            'distance_km': float(assigned_route.distance_km) if assigned_route.distance_km else None,
+        }
+    else:
+        route_data = None
+
+    return JsonResponse({
+        'success': True,
+        'assigned_route': route_data
+    })
+
+
+@login_required
+def driver_schedules_api(request):
+    """API endpoint - returns ONLY schedules for driver's assigned route"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'error': 'Not a driver'}, status=403)
+
+    driver = request.user.driver_profile
+    today = timezone.now().date()
+    assigned_route = driver.assigned_route
+
+    schedules_data = []
+
+    if assigned_route:
+        schedules = Schedule.objects.filter(
+            route=assigned_route,
+            travel_date__gte=today,
+            is_active=True
+        ).select_related('route', 'bus').order_by('travel_date', 'departure_time')
+
+        for s in schedules:
+            schedules_data.append({
+                'id': s.id,
+                'route_id': s.route.id,
+                'route_code': s.route.code,
+                'start': s.route.start,
+                'end': s.route.end,
+                'travel_date': s.travel_date.strftime('%Y-%m-%d'),
+                'travel_date_formatted': s.travel_date.strftime('%b %d, %Y'),
+                'departure_time': s.departure_time.strftime('%I:%M %p'),
+                'fare': float(s.fare),
+                'bus_number': s.bus.bus_number if s.bus else '',
+                'bus_capacity': s.bus.capacity if s.bus else 40,
+                'available_seats': s.available_seats,
+            })
+
+    return JsonResponse({
+        'success': True,
+        'has_assigned_route': assigned_route is not None,
+        'schedules': schedules_data
+    })
+@login_required
+def driver_get_emergency_reports(request):
+    """API: Get driver's emergency alert history"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'error': 'Not a driver'}, status=403)
+
+    driver = request.user.driver_profile
+
+    # Get alerts sent by this driver
+    alerts = Alert.objects.filter(
+        driver=driver
+    ).order_by('-created_at')[:20]
+
+    # Get emergency alerts from EmergencyAlert model
+    emergency_alerts = EmergencyAlert.objects.filter(
+        user=request.user
+    ).order_by('-created_at')[:20]
+
+    reports = []
+
+    # Process Alert objects
+    for alert in alerts:
+        response_time = None
+        if alert.resolved_at:
+            diff = alert.resolved_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+
+        alert_type_display = {
+            'emergency': 'Emergency',
+            'vehicle_issue': 'Vehicle Issue',
+            'route_change': 'Route Change',
+            'general': 'General'
+        }.get(alert.alert_type, alert.alert_type.capitalize())
+
+        reports.append({
+            'id': alert.id,
+            'alert_id': f"ALT-{alert.id}",
+            'alert_type': alert.alert_type,
+            'alert_type_display': alert_type_display,
+            'message': alert.message[:200],
+            'location_name': alert.location or 'Unknown',
+            'status': 'resolved' if alert.is_resolved else 'pending',
+            'created_at': alert.created_at.strftime('%Y-%m-%d at %I:%M %p'),
+            'response_time': response_time
+        })
+
+    # Process EmergencyAlert objects
+    for alert in emergency_alerts:
+        response_time = None
+        if alert.responded_at:
+            diff = alert.responded_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+        elif alert.resolved_at:
+            diff = alert.resolved_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+
+        status_map = {
+            'pending': 'pending',
+            'acknowledged': 'in-progress',
+            'resolved': 'resolved',
+            'false_alarm': 'resolved'
+        }
+
+        reports.append({
+            'id': alert.id,
+            'alert_id': f"EMG-{alert.id}",
+            'alert_type': alert.alert_type,
+            'alert_type_display': alert.get_alert_type_display() if hasattr(alert, 'get_alert_type_display') else alert.alert_type.capitalize(),
+            'message': alert.message[:200],
+            'location_name': alert.location_name or 'Unknown',
+            'status': status_map.get(alert.status, alert.status),
+            'created_at': alert.created_at.strftime('%Y-%m-%d at %I:%M %p'),
+            'response_time': response_time
+        })
+
+    # Sort by created_at descending and limit to 20
+    reports.sort(key=lambda x: x['created_at'], reverse=True)
+
+    return JsonResponse({
+        'success': True,
+        'reports': reports[:20]
+    })
+@login_required
+def driver_get_emergency_reports(request):
+    """API: Get driver's emergency alert history"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'error': 'Not a driver'}, status=403)
+
+    driver = request.user.driver_profile
+
+    # Get alerts sent by this driver
+    alerts = Alert.objects.filter(driver=driver).order_by('-created_at')[:20]
+    
+    # Get emergency alerts from EmergencyAlert model
+    emergency_alerts = EmergencyAlert.objects.filter(user=request.user).order_by('-created_at')[:20]
+
+    reports = []
+
+    # Process Alert objects
+    for alert in alerts:
+        response_time = None
+        if alert.resolved_at:
+            diff = alert.resolved_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+
+        alert_type_display = {
+            'emergency': 'Emergency',
+            'vehicle_issue': 'Vehicle Issue',
+            'route_change': 'Route Change',
+            'general': 'General'
+        }.get(alert.alert_type, alert.alert_type.capitalize())
+
+        reports.append({
+            'id': alert.id,
+            'alert_id': f"ALT-{alert.id}",
+            'alert_type': alert.alert_type,
+            'alert_type_display': alert_type_display,
+            'message': alert.message[:200],
+            'location_name': alert.location or 'Unknown',
+            'status': 'resolved' if alert.is_resolved else 'pending',
+            'created_at': alert.created_at.strftime('%Y-%m-%d at %I:%M %p'),
+            'response_time': response_time
+        })
+
+    # Process EmergencyAlert objects
+    for alert in emergency_alerts:
+        response_time = None
+        if alert.responded_at:
+            diff = alert.responded_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+        elif alert.resolved_at:
+            diff = alert.resolved_at - alert.created_at
+            minutes = int(diff.total_seconds() / 60)
+            response_time = f"{minutes} min"
+
+        status_map = {
+            'pending': 'pending',
+            'acknowledged': 'in-progress',
+            'resolved': 'resolved',
+            'false_alarm': 'resolved'
+        }
+
+        reports.append({
+            'id': alert.id,
+            'alert_id': f"EMG-{alert.id}",
+            'alert_type': alert.alert_type,
+            'alert_type_display': alert.get_alert_type_display() if hasattr(alert, 'get_alert_type_display') else alert.alert_type.capitalize(),
+            'message': alert.message[:200],
+            'location_name': alert.location_name or 'Unknown',
+            'status': status_map.get(alert.status, alert.status),
+            'created_at': alert.created_at.strftime('%Y-%m-%d at %I:%M %p'),
+            'response_time': response_time
+        })
+
+    reports.sort(key=lambda x: x['created_at'], reverse=True)
+
+    return JsonResponse({
+        'success': True,
+        'reports': reports[:20]
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def driver_send_emergency_alert(request):
+    """API: Send emergency alert from driver with full details"""
+    if not hasattr(request.user, 'driver_profile'):
+        return JsonResponse({'success': False, 'message': 'Not a driver'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        alert_type = data.get('alert_type', 'other')
+        message = data.get('message', '')
+        location_name = data.get('location_name', '')
+
+        if not message:
+            return JsonResponse({'success': False, 'message': 'Message is required'}, status=400)
+
+        driver = request.user.driver_profile
+
+        alert_type_map = {
+            'breakdown': 'vehicle_issue',
+            'accident': 'emergency',
+            'medical': 'emergency',
+            'other': 'general'
+        }
+
+        priority_map = {
+            'breakdown': 2,
+            'accident': 1,
+            'medical': 1,
+            'other': 3
+        }
+
+        alert = Alert.objects.create(
+            driver=driver,
+            alert_type=alert_type_map.get(alert_type, 'emergency'),
+            message=f"🚨 {alert_type.upper()}: {message}",
+            location=f"{location_name or 'Current trip location'} - Bus: {driver.assigned_bus.bus_number if driver.assigned_bus else 'Unknown'}",
+            is_resolved=False
+        )
+
+        emergency_alert = EmergencyAlert.objects.create(
+            user=request.user,
+            alert_type=alert_type,
+            message=f"{alert_type.upper()}: {message}",
+            location_name=location_name or 'Current trip location',
+            priority=priority_map.get(alert_type, 1),
+            status='pending'
+        )
+
+        Notification.objects.create(
+            type='emergency',
+            title=f'🚨 EMERGENCY ALERT - {driver.user.get_full_name() or driver.user.username}',
+            message=f"Type: {alert_type.upper()}\nLocation: {location_name or 'Unknown'}\nMessage: {message[:100]}",
+            related_driver=driver,
+            is_read=False,
+            is_resolved=False
+        )
+
+        print(f"🚨 Emergency alert #{alert.id} sent by {driver.user.username}")
+        print(f"Type: {alert_type}, Location: {location_name}")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Emergency alert sent successfully! Help is on the way.',
+            'alert_id': alert.id
+        })
+
+    except Exception as e:
+        print(f"Error sending emergency alert: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
